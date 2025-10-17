@@ -1,0 +1,980 @@
+id,course,region_code,region
+crs_13780,La Plata,arg,Argentina
+crs_33332,La Punta,arg,Argentina
+crs_15626,Palermo,arg,Argentina
+crs_13832,San Isidro,arg,Argentina
+crs_33722,Albury,aus,Australia
+crs_35308,Alice springs,aus,Australia
+crs_37362,Aramac,aus,Australia
+crs_30836,Ararat,aus,Australia
+crs_35204,Armidale,aus,Australia
+crs_13468,Ascot-Aus,aus,Australia
+crs_37388,Atherton,aus,Australia
+crs_35750,Avoca,aus,Australia
+crs_33540,Bairnsdale,aus,Australia
+crs_31590,Balaklava,aus,Australia
+crs_27300,Ballarat,aus,Australia
+crs_32708,Balnarring,aus,Australia
+crs_37414,Barcaldine,aus,Australia
+crs_28600,Bathurst,aus,Australia
+crs_32838,Beaudesert,aus,Australia
+crs_24492,Belmont Park-Perth,aus,Australia
+crs_27352,Benalla,aus,Australia
+crs_26494,Bendigo,aus,Australia
+crs_37440,Bluff,aus,Australia
+crs_37258,Bowen,aus,Australia
+crs_28548,Bunbury,aus,Australia
+crs_37466,Bundaberg,aus,Australia
+crs_37492,Burrandowan,aus,Australia
+crs_37518,Cairns,aus,Australia
+crs_32630,Camperdown,aus,Australia
+crs_16354,Canberra,aus,Australia
+crs_12532,Canterbury Park,aus,Australia
+crs_32604,Casterton,aus,Australia
+crs_12194,Caulfield,aus,Australia
+crs_28652,Cessnock,aus,Australia
+crs_37544,Charleville,aus,Australia
+crs_37570,Charters Town,aus,Australia
+crs_19136,Cheltenham-Aus,aus,Australia
+crs_37284,Cloncurry,aus,Australia
+crs_32214,Colac,aus,Australia
+crs_33644,Coleraine,aus,Australia
+crs_38376,Corowa,aus,Australia
+crs_21346,Cranbourne,aus,Australia
+crs_37596,Cunnamulla,aus,Australia
+crs_37622,Dalby,aus,Australia
+crs_34840,Donald,aus,Australia
+crs_12142,Doomben,aus,Australia
+crs_12168,Eagle Farm,aus,Australia
+crs_34658,Echuca,aus,Australia
+crs_37648,Edenhope,aus,Australia
+crs_16614,Elwick,aus,Australia
+crs_37674,Emerald,aus,Australia
+crs_32786,Esk,aus,Australia
+crs_7722,Flemington,aus,Australia
+crs_32812,Gatton,aus,Australia
+crs_22282,Gawler,aus,Australia
+crs_37700,Gayndah,aus,Australia
+crs_21372,Geelong,aus,Australia
+crs_37232,Geelong-AW,aus,Australia
+crs_37310,Gladstone,aus,Australia
+crs_22386,Gold Coast,aus,Australia
+crs_37336,Goondiwindi,aus,Australia
+crs_37726,Gordonvale,aus,Australia
+crs_27222,Gosford,aus,Australia
+crs_32344,Goulburn,aus,Australia
+crs_28522,Grafton,aus,Australia
+crs_36062,Great Western,aus,Australia
+crs_37752,Gregory Downs,aus,Australia
+crs_34996,Gundagai,aus,Australia
+crs_32370,Hamilton-Aus,aus,Australia
+crs_32526,Hanging Rock,aus,Australia
+crs_17160,Hawkesbury,aus,Australia
+crs_31226,Hobart,aus,Australia
+crs_37778,Home Hill,aus,Australia
+crs_37804,Horsham,aus,Australia
+crs_37830,Hughenden,aus,Australia
+crs_37856,Injune,aus,Australia
+crs_37882,Innisfail,aus,Australia
+crs_26468,Ipswich,aus,Australia
+crs_37908,Jandowae,aus,Australia
+crs_34008,Kalgoorlie,aus,Australia
+crs_21138,Kembla Grange,aus,Australia
+crs_25090,Kensington,aus,Australia
+crs_25480,Kilmore,aus,Australia
+crs_26624,Kyneton,aus,Australia
+crs_31382,Launceston,aus,Australia
+crs_37934,Longreach,aus,Australia
+crs_37960,Mackay,aus,Australia
+crs_35672,Manangatang,aus,Australia
+crs_37986,Mildura,aus,Australia
+crs_32734,Moe,aus,Australia
+crs_7774,Moonee Valley,aus,Australia
+crs_21424,Mornington,aus,Australia
+crs_12012,Morphettville,aus,Australia
+crs_32032,Morphettville Parks,aus,Australia
+crs_37050,Moruya,aus,Australia
+crs_38012,Mount Garnet,aus,Australia
+crs_38038,Mount Isa,aus,Australia
+crs_17706,Mowbray,aus,Australia
+crs_22308,Murray Bridge,aus,Australia
+crs_32110,Murtoa,aus,Australia
+crs_28626,Muswellbrook,aus,Australia
+crs_38064,Nanango,aus,Australia
+crs_38090,Naracoorte,aus,Australia
+crs_17914,Newcastle-Aus,aus,Australia
+crs_35880,Northam,aus,Australia
+crs_32292,Nowra,aus,Australia
+crs_27950,Oakbank,aus,Australia
+crs_38116,Oakley,aus,Australia
+crs_36166,Orange,aus,Australia
+crs_30940,Pakenham,aus,Australia
+crs_38142,Penola,aus,Australia
+crs_29510,Pinjarra,aus,Australia
+crs_38168,Port Augusta,aus,Australia
+crs_32318,Port Macquarie,aus,Australia
+crs_28496,Queanbeyaan,aus,Australia
+crs_38194,Quilpie,aus,Australia
+crs_12246,Randwick,aus,Australia
+crs_38220,Rockhampton,aus,Australia
+crs_8086,Rosehill,aus,Australia
+crs_27274,Sale,aus,Australia
+crs_12480,Sandown-Aus,aus,Australia
+crs_32682,Scone,aus,Australia
+crs_26572,Seymour,aus,Australia
+crs_26598,Stawell,aus,Australia
+crs_37102,Stony Creek,aus,Australia
+crs_22334,Strathalbyn,aus,Australia
+crs_23322,Sunshine Coast,aus,Australia
+crs_27404,Swan Hill,aus,Australia
+crs_37206,Tambo,aus,Australia
+crs_38350,Tatura,aus,Australia
+crs_32188,Terang,aus,Australia
+crs_38246,Thangool,aus,Australia
+crs_24284,Toowoomba,aus,Australia
+crs_38272,Tower Hill,aus,Australia
+crs_38298,Townsville,aus,Australia
+crs_34788,Traralgon,aus,Australia
+crs_20826,Victoria Park,aus,Australia
+crs_28470,Wagga Wagga,aus,Australia
+crs_27326,Wangaratta,aus,Australia
+crs_26520,Warraknabeal,aus,Australia
+crs_32084,Warrnambool,aus,Australia
+crs_13442,Warwick Farm,aus,Australia
+crs_34684,Wellington,aus,Australia
+crs_21398,Werribee,aus,Australia
+crs_34918,Wodonga,aus,Australia
+crs_38324,Wondai,aus,Australia
+crs_32266,Wyeera,aus,Australia
+crs_28678,Wyong,aus,Australia
+crs_30888,Yarra Valley,aus,Australia
+crs_35022,York-Aus,aus,Australia
+crs_32396,Young,aus,Australia
+crs_30654,Ebreichsdorf,aut,Austria
+crs_22100,Freudenau,aut,Austria
+crs_29562,Magna racino,aut,Austria
+crs_22594,Sakhir,bhr,Bahrain
+crs_37154,Garrison,bar,Barbados
+crs_7436,Boitsfort,bel,Belgium
+crs_23140,Ghlin,bel,Belgium
+crs_6162,Groenendael,bel,Belgium
+crs_23114,Moulens,bel,Belgium
+crs_5668,Ostend,bel,Belgium
+crs_6214,Sterrebeek,bel,Belgium
+crs_6396,Waregem,bel,Belgium
+crs_13806,Cidade Jardim,brz,Brazil
+crs_33020,Cristal,brz,Brazil
+crs_13754,Gavea,brz,Brazil
+crs_21736,Taruma,brz,Brazil
+crs_19110,Sofia,bul,Bulgaria
+crs_40950,Ajax Downs,can,Canada
+crs_40976,Alberta Downs,can,Canada
+crs_30706,Assiniboia downs,can,Canada
+crs_41002,Desert Park,can,Canada
+crs_15184,Fort Erie,can,Canada
+crs_41028,Grande Prairie,can,Canada
+crs_17134,Hastings Racecourse,can,Canada
+crs_41054,Kamloops,can,Canada
+crs_41080,Kin Park,can,Canada
+crs_41106,Lethbridge,can,Canada
+crs_41132,Marquis Downs,can,Canada
+crs_41158,Melville District Agripar,can,Canada
+crs_41184,Millarville,can,Canada
+crs_26988,Northlands park,can,Canada
+crs_25428,Northside park,can,Canada
+crs_41210,Picov Downs,can,Canada
+crs_41236,Rossburn Parkland Downs,can,Canada
+crs_41262,Sandown Park,can,Canada
+crs_26962,Stampede park,can,Canada
+crs_41288,Sunflower,can,Canada
+crs_6890,Woodbine,can,Canada
+crs_19786,Club Hipico de Santiago,chi,Chile
+crs_14508,Hipodromo Chile,chi,Chile
+crs_28886,Valparaiso Sporting Club,chi,Chile
+crs_19812,Vina Del Mar,chi,Chile
+crs_34086,Jinma Lake,chn,China
+crs_31720,Nicosia,cyp,Cyprus
+crs_31018,Albertovec,cze,Czech Republic
+crs_16146,Benesov,cze,Czech Republic
+crs_27846,Brno,cze,Czech Republic
+crs_15262,Hluboka Nad Vltavou,cze,Czech Republic
+crs_15210,Karlovy Vary,cze,Czech Republic
+crs_25324,Kolesa,cze,Czech Republic
+crs_23348,Lysa Nad Labem,cze,Czech Republic
+crs_25298,Mirosov,cze,Czech Republic
+crs_19370,Most,cze,Czech Republic
+crs_27924,Netolice,cze,Czech Republic
+crs_23296,Olsany,cze,Czech Republic
+crs_13884,Pardubice,cze,Czech Republic
+crs_32422,Radslavice,cze,Czech Republic
+crs_27872,Slusovice,cze,Czech Republic
+crs_19448,Svetla Hora,cze,Czech Republic
+crs_27898,Tochovice,cze,Czech Republic
+crs_22438,Velka Chuchle,cze,Czech Republic
+crs_26936,Aalborg,den,Denmark
+crs_20930,Aarhus,den,Denmark
+crs_5824,Copenhagen,den,Denmark
+crs_16874,Fyns,den,Denmark
+crs_26754,Klampenborg,den,Denmark
+crs_29172,Odense,den,Denmark
+crs_27482,Abbeville,fr,France
+crs_8112,Agen,fr,France
+crs_20124,Aix-Les-Bains,fr,France
+crs_36894,Ajaccio,fr,France
+crs_21268,Alencon,fr,France
+crs_6500,Amiens,fr,France
+crs_6266,Angers,fr,France
+crs_15548,Angouleme,fr,France
+crs_7852,Argentan,fr,France
+crs_16094,Arras,fr,France
+crs_13052,Auch,fr,France
+crs_22360,Aurillac,fr,France
+crs_5330,Auteuil,fr,France
+crs_13728,Avignon,fr,France
+crs_6760,Avranches,fr,France
+crs_6942,Bagneres,fr,France
+crs_21060,Bagnoles-De-L'Orne,fr,France
+crs_13026,Beaumont-De-Lomagne,fr,France
+crs_24102,Beaupreau,fr,France
+crs_20566,Berck-Sur-Mer,fr,France
+crs_6526,Bernay,fr,France
+crs_6968,Biarritz-Bayonne,fr,France
+crs_36816,Biguglia,fr,France
+crs_16172,Blain-Bouvron-Le-Gavre,fr,France
+crs_13494,Bordeaux Le Bouscat,fr,France
+crs_21294,Brehal,fr,France
+crs_5616,Cagnes-Sur-Mer,fr,France
+crs_27794,Carcassonne,fr,France
+crs_21086,Carhaix,fr,France
+crs_16380,Carpentras,fr,France
+crs_24570,Castelsarrasin,fr,France
+crs_16406,Castera-Verduzan,fr,France
+crs_16224,Cavaillon,fr,France
+crs_25402,Cazaubon-Barbotan-Les-Thermes,fr,France
+crs_23062,Chalais,fr,France
+crs_16276,Challans,fr,France
+crs_27430,Chalons en Champagne,fr,France
+crs_13676,Chalons-Sur-Marne,fr,France
+crs_5304,Chantilly,fr,France
+crs_19188,Chateau-Gontier,fr,France
+crs_7202,Chateaubriant,fr,France
+crs_19214,Chateauroux,fr,France
+crs_27118,Chatillon-Sur-Chalaronne,fr,France
+crs_16250,Chinon,fr,France
+crs_14352,Cholet,fr,France
+crs_6552,Clairefontaine,fr,France
+crs_21450,Cluny,fr,France
+crs_29952,Combree,fr,France
+crs_7566,Compiegne,fr,France
+crs_7514,Corlay,fr,France
+crs_7332,Craon,fr,France
+crs_7800,Dax,fr,France
+crs_5356,Deauville,fr,France
+crs_11336,Dieppe,fr,France
+crs_16458,Dinan,fr,France
+crs_16484,Divonne-Les-Bains,fr,France
+crs_7306,Durtal,fr,France
+crs_29146,Eauze,fr,France
+crs_16536,Ecommoy,fr,France
+crs_16562,Elbeuf,fr,France
+crs_6474,Enghien,fr,France
+crs_22230,Erbray,fr,France
+crs_11102,Evreux,fr,France
+crs_5408,Evry,fr,France
+crs_16718,Feurs,fr,France
+crs_5434,Fontainebleau,fr,France
+crs_16796,Fougeres,fr,France
+crs_16900,Gabarret,fr,France
+crs_16926,Gemozac,fr,France
+crs_21216,Graignes,fr,France
+crs_26286,Gramat,fr,France
+crs_17004,Granville-St Pair Sur Mer,fr,France
+crs_17030,Grenade Sur Garonne,fr,France
+crs_21892,Guerlesquin,fr,France
+crs_30290,Guingamp,fr,France
+crs_11024,Hyeres,fr,France
+crs_17212,Jallais,fr,France
+crs_20098,Jarnac,fr,France
+crs_23712,Josselin,fr,France
+crs_27586,L'Isle-Sur-Sorgue,fr,France
+crs_16328,La Capelle,fr,France
+crs_20358,La Guerche-De-Bretagne,fr,France
+crs_7618,La Guerche-Nevers,fr,France
+crs_7930,La Roche-Posay,fr,France
+crs_21606,La Roche-Sur-Yon,fr,France
+crs_20904,La Rochelle-Chatelaillon,fr,France
+crs_10166,La Teste De Buch,fr,France
+crs_27690,La gacilly,fr,France
+crs_20956,Landivisiau,fr,France
+crs_17446,Langon,fr,France
+crs_17472,Lannemezan,fr,France
+crs_5902,Le Croise-Laroche,fr,France
+crs_17316,Le Dorat,fr,France
+crs_8138,Le Lion-D'Angers,fr,France
+crs_7228,Le Mans,fr,France
+crs_26208,Le Pertre,fr,France
+crs_21710,Le Petre,fr,France
+crs_18044,Le Pin au Haras,fr,France
+crs_9854,Le Touquet,fr,France
+crs_21866,Le-Grand-Fougeray,fr,France
+crs_17342,Les Andelys,fr,France
+crs_14768,Les Sables-d'Olonne,fr,France
+crs_29614,Lesparre,fr,France
+crs_17394,Libourne,fr,France
+crs_17420,Lignieres,fr,France
+crs_23088,Limoges,fr,France
+crs_10322,Lisieux,fr,France
+crs_5486,Longchamp,fr,France
+crs_17290,Loudeac,fr,France
+crs_29744,Lucon,fr,France
+crs_14066,Lyon Parilly,fr,France
+crs_5512,Lyon Villeurbanne,fr,France
+crs_33592,Lyon-La Soie,fr,France
+crs_17602,Machecoul,fr,France
+crs_15574,Macon-Cluny,fr,France
+crs_5538,Maisons-Laffitte,fr,France
+crs_13702,Marseille Borely,fr,France
+crs_18122,Marseille Pont-de-Vivaux,fr,France
+crs_15600,Maure-De-Bretagne,fr,France
+crs_27508,Mauron,fr,France
+crs_20670,Meral,fr,France
+crs_17654,Meslay-Du-Maine,fr,France
+crs_21242,Moblaix,fr,France
+crs_22178,Molieres,fr,France
+crs_6084,Mont-De-Marsan,fr,France
+crs_17810,Montauban,fr,France
+crs_17628,Montier-En-Der,fr,France
+crs_20800,Montignac,fr,France
+crs_17836,Montlucon-Neris,fr,France
+crs_29224,Montrevault,fr,France
+crs_20332,Morlaix,fr,France
+crs_19604,Moulins,fr,France
+crs_10192,Moulins-la-marche,fr,France
+crs_14534,Nancy,fr,France
+crs_7254,Nantes,fr,France
+crs_11050,Nimes,fr,France
+crs_17862,Niort,fr,France
+crs_17888,Nort-Sur-Erdre,fr,France
+crs_29926,Nuille-sur-vicoin,fr,France
+crs_27612,Oraison,fr,France
+crs_17966,Orleans,fr,France
+crs_18096,Paray-Le-Monial,fr,France
+crs_13962,Pau,fr,France
+crs_18070,Plestin-Les-Greves,fr,France
+crs_7904,Ploermel,fr,France
+crs_23556,Plouescat,fr,France
+crs_14612,Pompadour,fr,France
+crs_13936,Pontchateau,fr,France
+crs_26182,Pontivy,fr,France
+crs_18148,Pornichet-La Baule,fr,France
+crs_36868,Prunelli,fr,France
+crs_18226,Questembert,fr,France
+crs_18252,Rambouillet,fr,France
+crs_18304,Redon,fr,France
+crs_15522,Rochefort-Sur-Loire,fr,France
+crs_18434,Rostrenen,fr,France
+crs_6370,Rouen,fr,France
+crs_19708,Royan La Palmyre,fr,France
+crs_18746,Sable-Sur-Sarthe,fr,France
+crs_18538,Saint-Brieuc,fr,France
+crs_5694,Saint-Cloud,fr,France
+crs_18642,Saint-Galmier,fr,France
+crs_23218,Saint-Jean-de-Monts,fr,France
+crs_19084,Saint-Malo,fr,France
+crs_29978,Saint-pierre-la-cour,fr,France
+crs_18564,Salon-de-Provence,fr,France
+crs_7592,Saumur,fr,France
+crs_18512,Savenay,fr,France
+crs_7878,Segre,fr,France
+crs_7280,Seiches-Sur-Le-Loir,fr,France
+crs_18590,Senonnes-Pouance,fr,France
+crs_35360,Sille-Le-Guillaume,fr,France
+crs_14716,Strasbourg,fr,France
+crs_18876,Tarbes,fr,France
+crs_6032,Toulouse,fr,France
+crs_20176,Tours,fr,France
+crs_23634,Vannes,fr,France
+crs_19006,Vertou,fr,France
+crs_35698,Vesoul,fr,France
+crs_27066,Vic-Bigorre,fr,France
+crs_24544,Vic-Fezensac,fr,France
+crs_5720,Vichy,fr,France
+crs_7956,Vire,fr,France
+crs_20436,Vitre,fr,France
+crs_27040,Vitteaux,fr,France
+crs_7540,Vittel,fr,France
+crs_19500,Wissembourg,fr,France
+crs_36842,Zonza,fr,France
+crs_22412,Bad Doberan,ger,Germany
+crs_15886,Bad Harzburg,ger,Germany
+crs_5382,Baden-Baden,ger,Germany
+crs_33462,Billigheim,ger,Germany
+crs_33410,Blieskastel,ger,Germany
+crs_8060,Bremen,ger,Germany
+crs_5876,Cologne,ger,Germany
+crs_6422,Dortmund,ger,Germany
+crs_16510,Dresden,ger,Germany
+crs_6240,Dusseldorf,ger,Germany
+crs_29640,Erbach,ger,Germany
+crs_6006,Frankfurt,ger,Germany
+crs_5954,Gelsenkirchen,ger,Germany
+crs_23530,Gotha,ger,Germany
+crs_17082,Halle,ger,Germany
+crs_6344,Hamburg,ger,Germany
+crs_6812,Hanover,ger,Germany
+crs_17108,Hassloch,ger,Germany
+crs_33280,Herschberg,ger,Germany
+crs_21814,Herxheim,ger,Germany
+crs_26364,Honzrath,ger,Germany
+crs_33306,Hooksiel,ger,Germany
+crs_11440,Hoppegarten,ger,Germany
+crs_6136,Krefeld,ger,Germany
+crs_23244,Lebach,ger,Germany
+crs_17576,Leipzig,ger,Germany
+crs_11882,Magdeburg,ger,Germany
+crs_21918,Mannheim,ger,Germany
+crs_33384,Meissenheim,ger,Germany
+crs_26338,Miesau,ger,Germany
+crs_7124,Mulheim,ger,Germany
+crs_6604,Munich,ger,Germany
+crs_6786,Neuss,ger,Germany
+crs_26312,Quakenbruck,ger,Germany
+crs_15912,Saarbrucken,ger,Germany
+crs_31564,Sonsbeck,ger,Germany
+crs_25376,Verden,ger,Germany
+crs_24362,Warendorf,ger,Germany
+crs_21840,Zweibrucken,ger,Germany
+crs_832,Aintree,gb,Great Britain
+crs_52,Ascot,gb,Great Britain
+crs_78,Ayr,gb,Great Britain
+crs_104,Bangor-on-Dee,gb,Great Britain
+crs_130,Bath,gb,Great Britain
+crs_156,Beverley,gb,Great Britain
+crs_182,Brighton,gb,Great Britain
+crs_208,Carlisle,gb,Great Britain
+crs_234,Cartmel,gb,Great Britain
+crs_260,Catterick,gb,Great Britain
+crs_34164,Chelmsford,gb,Great Britain
+crs_28158,Chelmsford-AW,gb,Great Britain
+crs_286,Cheltenham,gb,Great Britain
+crs_312,Chepstow,gb,Great Britain
+crs_338,Chester,gb,Great Britain
+crs_390,Doncaster,gb,Great Britain
+crs_442,Epsom,gb,Great Britain
+crs_364,Exeter,gb,Great Britain
+crs_468,Fakenham,gb,Great Britain
+crs_31512,Ffos Las,gb,Great Britain
+crs_494,Folkestone,gb,Great Britain
+crs_520,Fontwell,gb,Great Britain
+crs_546,Goodwood,gb,Great Britain
+crs_572,Hamilton,gb,Great Britain
+crs_598,Haydock,gb,Great Britain
+crs_624,Hereford,gb,Great Britain
+crs_650,Hexham,gb,Great Britain
+crs_676,Huntingdon,gb,Great Britain
+crs_702,Kelso,gb,Great Britain
+crs_728,Kempton,gb,Great Britain
+crs_28054,Kempton-AW,gb,Great Britain
+crs_37024,Larkhill-gb,gb,Great Britain
+crs_780,Leicester,gb,Great Britain
+crs_806,Lingfield,gb,Great Britain
+crs_10218,Lingfield-AW,gb,Great Britain
+crs_884,Ludlow,gb,Great Britain
+crs_910,Market Rasen,gb,Great Britain
+crs_416,Musselburgh,gb,Great Britain
+crs_936,Newbury,gb,Great Britain
+crs_962,Newcastle,gb,Great Britain
+crs_35178,Newcastle-AW,gb,Great Britain
+crs_988,Newmarket,gb,Great Britain
+crs_4524,Newmarket-July,gb,Great Britain
+crs_1014,Newton Abbot,gb,Great Britain
+crs_1040,Nottingham,gb,Great Britain
+crs_1066,Perth,gb,Great Britain
+crs_1144,Plumpton,gb,Great Britain
+crs_1196,Pontefract,gb,Great Britain
+crs_1222,Redcar,gb,Great Britain
+crs_1274,Ripon,gb,Great Britain
+crs_1352,Salisbury,gb,Great Britain
+crs_1404,Sandown,gb,Great Britain
+crs_1482,Sedgefield,gb,Great Britain
+crs_1586,Southwell,gb,Great Britain
+crs_10244,Southwell-AW,gb,Great Britain
+crs_1742,Stratford,gb,Great Britain
+crs_1898,Taunton,gb,Great Britain
+crs_2080,Thirsk,gb,Great Britain
+crs_2158,Towcester,gb,Great Britain
+crs_2184,Uttoxeter,gb,Great Britain
+crs_2210,Warwick,gb,Great Britain
+crs_2262,Wetherby,gb,Great Britain
+crs_2340,Wincanton,gb,Great Britain
+crs_2418,Windsor,gb,Great Britain
+crs_2470,Wolverhampton,gb,Great Britain
+crs_13338,Wolverhampton-AW,gb,Great Britain
+crs_2626,Worcester,gb,Great Britain
+crs_2704,Yarmouth,gb,Great Britain
+crs_2782,York,gb,Great Britain
+crs_26130,Falirou,gr,Greece
+crs_26156,Markopoulou,gr,Greece
+crs_24206,Phaleron,gr,Greece
+crs_26884,L'Ancresse,gue,Guernsey
+crs_5850,Duindigt,hol,Holland
+crs_10296,Happy Valley,hk,Hong Kong
+crs_10816,Sha Tin,hk,Hong Kong
+crs_6188,Kincsem Park,hun,Hungary
+crs_24674,Bangalore,ind,India
+crs_27768,Chennai,ind,India
+crs_29666,Hyderabad,ind,India
+crs_36426,Kolkata,ind,India
+crs_27742,Mumbai,ind,India
+crs_36452,Mysore,ind,India
+crs_37180,Ooty,ind,India
+crs_24622,Pune,ind,India
+crs_4550,Ballinrobe,ire,Ireland
+crs_4576,Bellewstown,ire,Ireland
+crs_4602,Clonmel,ire,Ireland
+crs_15496,Cork,ire,Ireland
+crs_4628,Curragh,ire,Ireland
+crs_4680,Down Royal,ire,Ireland
+crs_4654,Downpatrick,ire,Ireland
+crs_4706,Dundalk,ire,Ireland
+crs_29588,Dundalk-AW,ire,Ireland
+crs_4732,Fairyhouse,ire,Ireland
+crs_4758,Galway,ire,Ireland
+crs_4784,Gowran Park,ire,Ireland
+crs_5278,Kilbeggan,ire,Ireland
+crs_4810,Killarney,ire,Ireland
+crs_4836,Laytown,ire,Ireland
+crs_4862,Leopardstown,ire,Ireland
+crs_4888,Limerick,ire,Ireland
+crs_4914,Limerick Junction,ire,Ireland
+crs_4940,Listowel,ire,Ireland
+crs_4966,Mallow,ire,Ireland
+crs_4992,Naas,ire,Ireland
+crs_5018,Navan,ire,Ireland
+crs_5044,Phoenix Park,ire,Ireland
+crs_5070,Punchestown,ire,Ireland
+crs_5096,Roscommon,ire,Ireland
+crs_5122,Sligo,ire,Ireland
+crs_5148,Thurles,ire,Ireland
+crs_5252,Tipperary,ire,Ireland
+crs_5174,Tralee,ire,Ireland
+crs_5200,Tramore,ire,Ireland
+crs_5226,Wexford,ire,Ireland
+crs_34892,Wexford-RH,ire,Ireland
+crs_29536,Gilboa,isr,Israel
+crs_31122,Pardess Hanna,isr,Israel
+crs_29692,Albenga,ity,Italy
+crs_30472,Anguillara,ity,Italy
+crs_30498,Capalbio,ity,Italy
+crs_7150,Capannelle,ity,Italy
+crs_25012,Chilivani,ity,Italy
+crs_22126,Corridonia,ity,Italy
+crs_7488,Florence,ity,Italy
+crs_13000,Grosseto,ity,Italy
+crs_20072,Livorno,ity,Italy
+crs_5798,Merano,ity,Italy
+crs_5928,Naples,ity,Italy
+crs_7384,Pisa,ity,Italy
+crs_6318,San Siro,ity,Italy
+crs_30524,Sassari,ity,Italy
+crs_30446,Siena,ity,Italy
+crs_28080,Siracusa,ity,Italy
+crs_28860,Tagliacozzo,ity,Italy
+crs_30992,Treviso,ity,Italy
+crs_7670,Turin,ity,Italy
+crs_7696,Varese,ity,Italy
+crs_33930,Vilanova d'Albenga,ity,Italy
+crs_31746,Arao,jpn,Japan
+crs_14898,Asahikawa,jpn,Japan
+crs_14924,Chukyo,jpn,Japan
+crs_20280,Fukushima,jpn,Japan
+crs_31772,Fukuyama,jpn,Japan
+crs_16848,Funabashi,jpn,Japan
+crs_17056,Hakodate,jpn,Japan
+crs_12766,Hanshin,jpn,Japan
+crs_31798,Himeji,jpn,Japan
+crs_25350,Kanazawa,jpn,Japan
+crs_22620,Kasamatsu,jpn,Japan
+crs_17264,Kawasaki,jpn,Japan
+crs_31434,Kochi,jpn,Japan
+crs_20228,Kokura,jpn,Japan
+crs_13104,Kyoto,jpn,Japan
+crs_14820,Mizusawa,jpn,Japan
+crs_31408,Mombetsu,jpn,Japan
+crs_17784,Morioka,jpn,Japan
+crs_16016,NAGOYA,jpn,Japan
+crs_13364,Nakayama,jpn,Japan
+crs_20254,Niigata,jpn,Japan
+crs_31824,Obihiro,jpn,Japan
+crs_14846,Ohi,jpn,Japan
+crs_31304,Saga,jpn,Japan
+crs_14950,Sapporo,jpn,Japan
+crs_28106,Sonoda,jpn,Japan
+crs_18798,Takasaki,jpn,Japan
+crs_8190,Tokyo,jpn,Japan
+crs_15990,Urawa,jpn,Japan
+crs_11076,Les Landes,jer,Jersey
+crs_35100,Busan,kor,Korea
+crs_35074,Seoul,kor,Korea
+crs_21788,Taipa,mac,Macau
+crs_33670,Penang,mal,Malaysia
+crs_26260,Champs de Mars,mau,Mauritius
+crs_33488,Casablanca,mor,Morocco
+crs_34138,Rabat,mor,Morocco
+crs_21944,Arawa park,nz,New Zealand
+crs_29848,Ascot park,nz,New Zealand
+crs_20150,Ashburton,nz,New Zealand
+crs_13156,Avondale,nz,New Zealand
+crs_30576,Awakino point,nz,New Zealand
+crs_12610,Awapuni,nz,New Zealand
+crs_19890,Cromwell,nz,New Zealand
+crs_9880,Ellerslie,nz,New Zealand
+crs_20748,Foxton,nz,New Zealand
+crs_29770,Gore,nz,New Zealand
+crs_15236,Hastings,nz,New Zealand
+crs_19630,Hawera,nz,New Zealand
+crs_31850,Hokitika,nz,New Zealand
+crs_31876,Kumara,nz,New Zealand
+crs_31902,Kurow,nz,New Zealand
+crs_20852,Makaraka,nz,New Zealand
+crs_20202,Matamata,nz,New Zealand
+crs_28964,Motukarara,nz,New Zealand
+crs_26390,Oamaru,nz,New Zealand
+crs_29796,Omakau,nz,New Zealand
+crs_31928,Omoto,nz,New Zealand
+crs_12298,Otaki,nz,New Zealand
+crs_20488,Paeroa,nz,New Zealand
+crs_27534,Phar Lap Raceway,nz,New Zealand
+crs_19526,Pukekohe Park,nz,New Zealand
+crs_24310,Pukekura Raceway,nz,New Zealand
+crs_21554,Rangiora,nz,New Zealand
+crs_31954,Reefton,nz,New Zealand
+crs_12272,Riccarton Park,nz,New Zealand
+crs_19916,Riverton,nz,New Zealand
+crs_20618,Ruakaka,nz,New Zealand
+crs_30108,Tauherenikau,nz,New Zealand
+crs_28028,Taupo,nz,New Zealand
+crs_28782,Tauranga,nz,New Zealand
+crs_20514,Te Awamutu,nz,New Zealand
+crs_19760,Te Kapua Racecourse,nz,New Zealand
+crs_22022,Te Kupenga,nz,New Zealand
+crs_12506,Te Rapa,nz,New Zealand
+crs_25532,Te Teko,nz,New Zealand
+crs_21190,Te aroha,nz,New Zealand
+crs_30602,Thames,nz,New Zealand
+crs_12454,Trentham,nz,New Zealand
+crs_31980,Waikouaiti,nz,New Zealand
+crs_19942,Waimate,nz,New Zealand
+crs_29822,Waipukurau,nz,New Zealand
+crs_19682,Wanganui,nz,New Zealand
+crs_20384,Waterlea,nz,New Zealand
+crs_26910,Waverley,nz,New Zealand
+crs_19968,Wingatui,nz,New Zealand
+crs_31278,Winton,nz,New Zealand
+crs_19734,Woodville,nz,New Zealand
+crs_19656,Wyndham,nz,New Zealand
+crs_6110,Ovrevoll,nor,Norway
+crs_33176,Muscat,omn,Oman
+crs_18408,Remon,pan,Panama
+crs_26442,Monterrico,per,Peru
+crs_18694,Sluzewiec,pol,Poland
+crs_24752,Sopot,pol,Poland
+crs_24700,Staniguda,pol,Poland
+crs_25168,Wroclaw,pol,Poland
+crs_41314,Camarero Race Track,pr,Puerto Rico
+crs_41340,Puerto Rico,pr,Puerto Rico
+crs_43992,Al Uqda,qa,Qatar
+crs_31096,Doha,qa,Qatar
+crs_18200,Qatar,qa,Qatar
+crs_33202,Gudermes,rus,Russia
+crs_27014,Kazan,rus,Russia
+crs_29432,Krasmodar,rus,Russia
+crs_28236,Moscow,rus,Russia
+crs_31330,Nalchik,rus,Russia
+crs_31356,Pyatigorsk,rus,Russia
+crs_33852,Rostov-On-Don,rus,Russia
+crs_26416,Janadriyah,ksa,Saudi Arabia
+crs_21762,Malaz,ksa,Saudi Arabia
+crs_22698,Taif,ksa,Saudi Arabia
+crs_20644,Kranji,sin,Singapore
+crs_12974,Bratislava,slo,Slovakia
+crs_35984,Samorin,slo,Slovakia
+crs_29094,Surany,slo,Slovakia
+crs_28912,Topolcianky,slo,Slovakia
+crs_35412,Imeno,svn,Slovenia
+crs_32162,Senica,svn,Slovenia
+crs_25688,Arlington,saf,South Africa
+crs_25844,Ascot,saf,South Africa
+crs_13390,Bloemfontein,saf,South Africa
+crs_25714,Borrowdale,saf,South Africa
+crs_25766,Clairwood,saf,South Africa
+crs_25818,Durbanville,saf,South Africa
+crs_14742,Fairview,saf,South Africa
+crs_26104,Flamingo Park,saf,South Africa
+crs_25792,Gosforth,saf,South Africa
+crs_11726,Greyville,saf,South Africa
+crs_13208,Kenilworth,saf,South Africa
+crs_13182,Newmarket-Saf,saf,South Africa
+crs_26078,RANDJESFONTEIN,saf,South Africa
+crs_13260,Scottsville,saf,South Africa
+crs_11700,Turffontein,saf,South Africa
+crs_26052,Turffontein Inside,saf,South Africa
+crs_26026,Turffontein Standside,saf,South Africa
+crs_25948,Turffontein new,saf,South Africa
+crs_25922,Turffontein old,saf,South Africa
+crs_12428,Vaal,saf,South Africa
+crs_25740,Vaal sand,saf,South Africa
+crs_23036,Dos hermanas,spa,Spain
+crs_31642,La Senia,spa,Spain
+crs_11674,La Zarzuela,spa,Spain
+crs_25220,Lasarte,spa,Spain
+crs_20982,Mijas,spa,Spain
+crs_23894,Pineda,spa,Spain
+crs_11518,San Sebastian,spa,Spain
+crs_25194,Sanlucar de Barrameda,spa,Spain
+crs_18616,Seville,spa,Spain
+crs_34944,Vila-Seca,spa,Spain
+crs_36010,Blommerod,swe,Sweden
+crs_35334,Bro Park,swe,Sweden
+crs_23842,Gothenburg,swe,Sweden
+crs_7020,Jagersro,swe,Sweden
+crs_6292,Stromsholm,swe,Sweden
+crs_7046,Taby,swe,Sweden
+crs_6916,Aarau,swi,Switzerland
+crs_16068,Arosa,swi,Switzerland
+crs_24518,Avenches,swi,Switzerland
+crs_15002,Dielsdorf,swi,Switzerland
+crs_28730,Fehraltorf,swi,Switzerland
+crs_10140,Frauenfeld,swi,Switzerland
+crs_17550,Lucerne,swi,Switzerland
+crs_20462,Maienfeld,swi,Switzerland
+crs_10426,St Moritz,swi,Switzerland
+crs_29354,Adana,tur,Turkey
+crs_23972,Ankara,tur,Turkey
+crs_30212,Bursa,tur,Turkey
+crs_11492,Veliefendi,tur,Turkey
+crs_23400,Aiken,usa,USA
+crs_34034,Albuquerque,usa,USA
+crs_38402,Anthony Downs,usa,USA
+crs_6630,Aqueduct,usa,USA
+crs_33254,Arapahoe Park,usa,USA
+crs_7176,Arlington Park,usa,USA
+crs_38428,Atlanta,usa,USA
+crs_19162,Atlanta Hunt,usa,USA
+crs_6656,Atlantic City,usa,USA
+crs_38454,Barretts Race Meet At Fairplex,usa,USA
+crs_12038,Bay Meadows,usa,USA
+crs_20410,Bay Meadows Fair,usa,USA
+crs_6708,Belmont Park,usa,USA
+crs_18486,Belterra Park,usa,USA
+crs_38480,Betfair Hollywood Park,usa,USA
+crs_29900,Beulah park,usa,USA
+crs_38506,Black Foot,usa,USA
+crs_38532,Blue Ribbon Downs,usa,USA
+crs_38558,Bowie,usa,USA
+crs_23426,Brookhill,usa,USA
+crs_38584,Brookhill Farm,usa,USA
+crs_38610,Brown County Fair,usa,USA
+crs_16198,Butler,usa,USA
+crs_8216,Callaway Gardens,usa,USA
+crs_38636,Camden,usa,USA
+crs_5980,Camden-South Carolina,usa,USA
+crs_12064,Canterbury Park,usa,USA
+crs_38662,Cassia County Fair,usa,USA
+crs_38688,Central Wyoming Fair,usa,USA
+crs_22906,Charles town,usa,USA
+crs_28340,Charlotte,usa,USA
+crs_38714,Chippewa Downs,usa,USA
+crs_8008,Churchill Downs,usa,USA
+crs_38740,Clemmons,usa,USA
+crs_12402,Colombus Park,usa,USA
+crs_15678,Colonial Downs,usa,USA
+crs_38766,Columbus,usa,USA
+crs_38792,Crooked River Roundup,usa,USA
+crs_38818,Dayton,usa,USA
+crs_11544,Del Mar,usa,USA
+crs_6448,Delaware Park,usa,USA
+crs_23998,Delta downs,usa,USA
+crs_16432,Detroit,usa,USA
+crs_38844,Detroit Race Course,usa,USA
+crs_38870,Dixie Downs,usa,USA
+crs_38896,Du Quoin,usa,USA
+crs_7748,Eagle,usa,USA
+crs_38922,Eastern Oregon Livestock Show,usa,USA
+crs_24882,El Comandante,usa,USA
+crs_38948,Elko County Fair,usa,USA
+crs_16588,Ellis Park,usa,USA
+crs_15652,Emerald Downs,usa,USA
+crs_38974,Emmett,usa,USA
+crs_39000,Eureka,usa,USA
+crs_16640,Evangeline Downs,usa,USA
+crs_19292,Fair Grounds,usa,USA
+crs_7982,Fair Hill,usa,USA
+crs_36530,Fair Meadows,usa,USA
+crs_39026,Fair Play Park,usa,USA
+crs_16692,Fairfax,usa,USA
+crs_16666,Fairmount Park,usa,USA
+crs_16822,Fairplex Park,usa,USA
+crs_10270,Far Hills,usa,USA
+crs_36504,Ferndale,usa,USA
+crs_16770,Finger Lakes,usa,USA
+crs_36556,Fonner Park,usa,USA
+crs_39052,Fort Pierre,usa,USA
+crs_15314,Foxfield,usa,USA
+crs_31070,Fresno,usa,USA
+crs_12090,Garden State,usa,USA
+crs_39078,Genesee Valley,usa,USA
+crs_39104,Gillespie County Fairground,usa,USA
+crs_16978,Glyndon,usa,USA
+crs_6864,Golden Gate Fields,usa,USA
+crs_39130,Grand National,usa,USA
+crs_39156,Grants Pass,usa,USA
+crs_39182,Great Barrington Fair,usa,USA
+crs_39208,Great Falls,usa,USA
+crs_24232,Great Lakes Downs,usa,USA
+crs_14586,Great Meadow,usa,USA
+crs_39234,Green Acres,usa,USA
+crs_39260,Greenelee County Fair @ Duncan,usa,USA
+crs_7072,Gulfstream Park,usa,USA
+crs_10348,Gulfstream Park West,usa,USA
+crs_12350,Hard Scuffle,usa,USA
+crs_39286,Harney County Fair,usa,USA
+crs_15704,Hawthorne,usa,USA
+crs_36582,Hazel Park,usa,USA
+crs_11622,Hialeah Park,usa,USA
+crs_39312,Hollywood Casino At Charles Town Races,usa,USA
+crs_6734,Hollywood Park,usa,USA
+crs_22152,Hoosier park,usa,USA
+crs_39338,Horsemens Atokad Downs,usa,USA
+crs_39364,Horsemens Park,usa,USA
+crs_39390,Humboldt County Fair,usa,USA
+crs_39416,Indiana Downs,usa,USA
+crs_31694,Indiana Grand,usa,USA
+crs_39442,Indiana Grand Race Course,usa,USA
+crs_39468,Ingleside,usa,USA
+crs_17186,Iroquois,usa,USA
+crs_39494,Jerome County Fair,usa,USA
+crs_39520,Kalispell,usa,USA
+crs_7826,Keeneland,usa,USA
+crs_6994,Kentucky,usa,USA
+crs_10452,Kentucky Downs,usa,USA
+crs_39546,La Mesa Park,usa,USA
+crs_39572,Laurel Brown Racetrack,usa,USA
+crs_5460,Laurel Park,usa,USA
+crs_39598,Les Bois Park,usa,USA
+crs_39624,Lexington,usa,USA
+crs_39650,Lincoln Race Course,usa,USA
+crs_28366,Little everglades,usa,USA
+crs_17524,Lone Star Park,usa,USA
+crs_17368,Longacres,usa,USA
+crs_33982,Los Alamitos,usa,USA
+crs_11596,Louisiana Downs,usa,USA
+crs_35802,Mahoning Valley,usa,USA
+crs_22542,Malvern,usa,USA
+crs_39676,Manor Downs,usa,USA
+crs_23504,Marengo,usa,USA
+crs_39702,Marias Fair,usa,USA
+crs_39728,Marlboro,usa,USA
+crs_7644,Meadowlands,usa,USA
+crs_12376,Middleburg,usa,USA
+crs_39754,Miles City,usa,USA
+crs_39780,Minidoka County Fair @ Rupert,usa,USA
+crs_22516,Monkton,usa,USA
+crs_6578,Monmouth Park,usa,USA
+crs_21476,Montpelier,usa,USA
+crs_13312,Morven Park,usa,USA
+crs_19344,Mountaineer Park,usa,USA
+crs_39806,Mt. Pleasant Meadows,usa,USA
+crs_39832,North Dakota Horse Park,usa,USA
+crs_39858,Oak Ridge,usa,USA
+crs_39884,Oak Tree At Hollywood Park,usa,USA
+crs_39910,Oak Tree At Santa Anita,usa,USA
+crs_12116,Oaklawn Park,usa,USA
+crs_39936,Ocala Training Center,usa,USA
+crs_17992,Ocala Turf Club,usa,USA
+crs_39962,Oneida County Fair,usa,USA
+crs_39988,Palm Beach Polo Club,usa,USA
+crs_15028,Parx,usa,USA
+crs_18018,Penn National,usa,USA
+crs_40014,Pennsylvania Hunt Cup,usa,USA
+crs_40040,Percy Warner,usa,USA
+crs_8164,Percy Warner Park,usa,USA
+crs_40066,Philadelphia Park,usa,USA
+crs_5746,Pimlico,usa,USA
+crs_13286,Pine Mountain,usa,USA
+crs_40092,Pine Mtn-Callaway Garden,usa,USA
+crs_40118,Pinnacle Race Course,usa,USA
+crs_30160,Pleasanton,usa,USA
+crs_40144,Pocatello Downs,usa,USA
+crs_35724,Portland Meadows,usa,USA
+crs_21008,Prairie Meadows,usa,USA
+crs_29718,Presque Isle Downs,usa,USA
+crs_18174,Prospect,usa,USA
+crs_18278,Red Bank,usa,USA
+crs_40170,Red Mile,usa,USA
+crs_18382,Redmond,usa,USA
+crs_18330,Remington Park,usa,USA
+crs_21034,Retama Park,usa,USA
+crs_40196,Rillito,usa,USA
+crs_40222,River Downs,usa,USA
+crs_18356,Rockingham Park,usa,USA
+crs_18460,Ruidoso Downs,usa,USA
+crs_36478,Sacramento,usa,USA
+crs_20878,Sam Houston,usa,USA
+crs_40248,San Juan Downs,usa,USA
+crs_40274,San Luis Rey Downs,usa,USA
+crs_18668,Sandhill,usa,USA
+crs_40300,Sandy Downs,usa,USA
+crs_6682,Santa Anita,usa,USA
+crs_40326,Santa Cruz County Fair @ Sonoita,usa,USA
+crs_40352,Santa Fe,usa,USA
+crs_25610,Santa Rosa,usa,USA
+crs_11570,Saratoga,usa,USA
+crs_40378,Shawan Downs,usa,USA
+crs_40404,Shennandoah Downs,usa,USA
+crs_40430,Solano,usa,USA
+crs_18720,Southern Pines,usa,USA
+crs_11908,Sportsman's Park,usa,USA
+crs_36608,Stockton,usa,USA
+crs_28288,Stoneybrook,usa,USA
+crs_40482,Stoneybrook At Five Points,usa,USA
+crs_23452,Strawberry hill,usa,USA
+crs_15054,Suffolk Downs,usa,USA
+crs_40508,Sun Downs,usa,USA
+crs_30680,SunRay Park,usa,USA
+crs_25558,Sunland Park,usa,USA
+crs_40534,Sweetwater Downs,usa,USA
+crs_18824,Tampa Bay Downs,usa,USA
+crs_40560,The Woodlands,usa,USA
+crs_18850,Thistledown,usa,USA
+crs_40586,Tillamook County Fair,usa,USA
+crs_40612,Timonium,usa,USA
+crs_40638,Tioga Downs,usa,USA
+crs_23374,Tryon,usa,USA
+crs_18902,Turf Paradise,usa,USA
+crs_3796,Turfway Park,usa,USA
+crs_15288,Tyron,usa,USA
+crs_18928,Unionville,usa,USA
+crs_40664,Waitsburg Race Track,usa,USA
+crs_40690,Walla Walla,usa,USA
+crs_40716,Western Mt Fair,usa,USA
+crs_40742,White Pine Raceway,usa,USA
+crs_40768,White Pine Racing,usa,USA
+crs_35776,Will Rogers Downs,usa,USA
+crs_40794,Willowdale Steeplechase,usa,USA
+crs_40820,Winterthur,usa,USA
+crs_40846,Wyoming Downs,usa,USA
+crs_40872,Yakima Meadows,usa,USA
+crs_40898,Yavapai Downs,usa,USA
+crs_40924,Yellowstone Downs,usa,USA
+crs_29328,Zia park,usa,USA
+crs_12740,Abu Dhabi,uae,United Arab Emirates
+crs_33878,Al Ain,uae,United Arab Emirates
+crs_19838,Ghantoot,uae,United Arab Emirates
+crs_14690,Jebel Ali,uae,United Arab Emirates
+crs_32006,Meydan,uae,United Arab Emirates
+crs_12558,Nad Al Sheba,uae,United Arab Emirates
+crs_14794,Sharjah,uae,United Arab Emirates
+crs_27820,Maronas,uru,Uruguay
+crs_26676,Belgrade,yug,Yugoslavia
+crs_26702,Sabac,yug,Yugoslavia

@@ -1,0 +1,34 @@
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# API and web requests
+requests>=2.28.0
+
+# Date and time handling
+python-dateutil>=2.8.0
+pytz>=2022.1
+
+# Data visualization
+matplotlib>=3.5.0
+
+# Database
+# sqlite3 is built into Python - no installation needed
+
+# Progress bars and utilities
+tqdm>=4.64.0
+
+# Model persistence
+joblib>=1.1.0
+
+# Jupyter notebook support
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Logging and error handling
+# (built-in modules: logging, traceback, warnings)
+
+# Development and testing
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
