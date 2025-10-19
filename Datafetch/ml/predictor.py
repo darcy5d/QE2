@@ -1,0 +1,454 @@
+#!/usr/bin/env python3
+"""
+ML Predictor - Generate predictions for upcoming races
+Uses trained XGBoost model to predict win probabilities
+"""
+
+import json
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+import sqlite3
+import sys
+
+# Add parent directory to path to import feature_engineer
+sys.path.append(str(Path(__file__).parent.parent))
+
+from ml.feature_engineer import FeatureEngineer
+
+
+class ModelPredictor:
+    """Generate predictions for upcoming races using trained ML model"""
+    
+    def __init__(self, model_path: str = None, racing_db_path: str = None):
+        """
+        Initialize predictor with trained model
+        
+        Args:
+            model_path: Path to trained model JSON file
+            racing_db_path: Path to racing_pro.db with historical data
+        """
+        self.model_dir = Path(__file__).parent / "models"
+        self.model_path = Path(model_path) if model_path else self.model_dir / "xgboost_baseline.json"
+        
+        # Database paths
+        if racing_db_path:
+            self.racing_db_path = Path(racing_db_path)
+        else:
+            self.racing_db_path = Path(__file__).parent.parent / "racing_pro.db"
+        
+        self.model = None
+        self.feature_columns = None
+        self.feature_importance = None
+        self.feature_engineer = None
+        
+        self._load_model()
+        self._load_feature_metadata()
+        self._init_feature_engineer()
+    
+    def _load_model(self):
+        """Load trained XGBoost model"""
+        try:
+            import xgboost as xgb
+            self.model = xgb.Booster()
+            self.model.load_model(str(self.model_path))
+            print(f"✓ Loaded model from {self.model_path}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load model: {e}")
+    
+    def _load_feature_metadata(self):
+        """Load feature columns and importance scores"""
+        # Load feature columns
+        feature_cols_path = self.model_dir / "feature_columns.json"
+        if feature_cols_path.exists():
+            with open(feature_cols_path, 'r') as f:
+                self.feature_columns = json.load(f)
+            print(f"✓ Loaded {len(self.feature_columns)} feature columns")
+        else:
+            raise FileNotFoundError(f"Feature columns file not found: {feature_cols_path}")
+        
+        # Load feature importance
+        importance_path = self.model_dir / "feature_importance.csv"
+        if importance_path.exists():
+            importance_df = pd.read_csv(importance_path)
+            self.feature_importance = dict(zip(importance_df['feature'], importance_df['importance']))
+            print(f"✓ Loaded feature importance scores")
+        else:
+            print("⚠ Feature importance file not found, will use default importance")
+            self.feature_importance = {col: 1.0/len(self.feature_columns) for col in self.feature_columns}
+    
+    def _init_feature_engineer(self):
+        """Initialize feature engineer for generating features"""
+        self.feature_engineer = FeatureEngineer(str(self.racing_db_path))
+        self.feature_engineer.connect()
+    
+    def predict_race(self, race_id: str, upcoming_db_path: str) -> Dict:
+        """
+        Generate predictions for all runners in a race
+        
+        Args:
+            race_id: Race ID from upcoming_races.db
+            upcoming_db_path: Path to upcoming_races.db
+            
+        Returns:
+            Dictionary with race info and predictions for each runner
+        """
+        # Get race details and runners from upcoming_races.db
+        race_data = self._get_race_data(race_id, upcoming_db_path)
+        if not race_data:
+            return None
+        
+        # Generate features for each runner
+        features_list = []
+        runner_info = []
+        
+        for runner in race_data['runners']:
+            # Generate features using FeatureEngineer
+            features = self._generate_runner_features(
+                race_data['race_info'],
+                runner
+            )
+            
+            if features:
+                features_list.append(features)
+                runner_info.append(runner)
+        
+        if not features_list:
+            return None
+        
+        # Compute relative features (field size, rating_vs_avg, etc.)
+        features_list = self.feature_engineer.compute_relative_features(features_list)
+        
+        # Create feature matrix
+        X = self._prepare_feature_matrix(features_list)
+        
+        # Make predictions with RANKING model
+        import xgboost as xgb
+        dmatrix = xgb.DMatrix(X, feature_names=self.feature_columns)
+        ranking_scores = self.model.predict(dmatrix)
+        
+        # Convert ranking scores to probabilities using softmax
+        # Ranking model outputs relative scores (higher = better)
+        # Softmax naturally ensures probabilities sum to 1.0
+        probabilities = self._scores_to_probabilities(ranking_scores)
+        
+        # Calculate ranks and confidence
+        ranks = self._calculate_ranks(probabilities)
+        confidence = self._calculate_confidence(probabilities)
+        
+        # Get top contributing features for each runner
+        contributions = [
+            self._get_feature_contributions(features_list[i], probabilities[i])
+            for i in range(len(runner_info))
+        ]
+        
+        # Compile results
+        predictions = []
+        for i, runner in enumerate(runner_info):
+            predictions.append({
+                'runner_number': runner.get('number'),
+                'horse_name': runner.get('horse_name'),
+                'trainer': runner.get('trainer_name'),
+                'jockey': runner.get('jockey_name'),
+                'win_probability': float(probabilities[i]),
+                'predicted_rank': int(ranks[i]),
+                'confidence': confidence,
+                'top_features': contributions[i],
+                'value_indicator': self._check_value_bet(probabilities[i], runner.get('ofr'))
+            })
+        
+        return {
+            'race_info': race_data['race_info'],
+            'predictions': sorted(predictions, key=lambda x: x['predicted_rank'])
+        }
+    
+    def _get_race_data(self, race_id: str, upcoming_db_path: str) -> Optional[Dict]:
+        """Fetch race and runner data from upcoming_races.db"""
+        conn = sqlite3.connect(upcoming_db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get race info
+        cursor.execute("""
+            SELECT race_id, course, date, off_time as time, distance, distance_f, going, 
+                   surface, type, race_class, prize, age_band, pattern, region
+            FROM races
+            WHERE race_id = ?
+        """, (race_id,))
+        
+        race_row = cursor.fetchone()
+        if not race_row:
+            conn.close()
+            return None
+        
+        race_info = dict(race_row)
+        
+        # Convert numeric fields from TEXT to proper types
+        if race_info.get('distance_f'):
+            try:
+                race_info['distance_f'] = float(race_info['distance_f'])
+            except (ValueError, TypeError):
+                race_info['distance_f'] = None
+        
+        # Get runners
+        cursor.execute("""
+            SELECT r.runner_id, r.number, r.draw, r.lbs, r.ofr, r.rpr, r.ts,
+                   r.headgear, r.form,
+                   h.horse_id, h.name as horse_name, h.age,
+                   t.trainer_id, t.name as trainer_name,
+                   j.jockey_id, j.name as jockey_name
+            FROM runners r
+            LEFT JOIN horses h ON r.horse_id = h.horse_id
+            LEFT JOIN trainers t ON r.trainer_id = t.trainer_id
+            LEFT JOIN jockeys j ON r.jockey_id = j.jockey_id
+            WHERE r.race_id = ?
+            ORDER BY r.number
+        """, (race_id,))
+        
+        runners = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return {
+            'race_info': race_info,
+            'runners': runners
+        }
+    
+    def _generate_runner_features(self, race_info: Dict, runner: Dict) -> Optional[Dict]:
+        """Generate ML features for a runner using FeatureEngineer"""
+        from datetime import datetime
+        
+        # Use today's date to ensure we only use historical data
+        race_date = datetime.now().strftime('%Y-%m-%d')
+        race_id = race_info['race_id']
+        
+        try:
+            # Encode categorical features (matching FeatureEngineer logic)
+            going_map = {
+                'heavy': 1, 'soft': 2, 'good to soft': 3, 'good': 4, 
+                'good to firm': 5, 'firm': 6, 'hard': 7, 'standard': 4, 'slow': 3
+            }
+            surface_map = {'turf': 1, 'aw': 2, 'tapeta': 2, 'polytrack': 2, 'dirt': 3}
+            
+            going_str = str(race_info.get('going') or 'good').lower()
+            going_encoded = going_map.get(going_str, 4)
+            
+            surface_str = str(race_info.get('surface') or 'turf').lower()
+            surface_encoded = surface_map.get(surface_str, 1)
+            
+            # Extract class number from race_class string (e.g., "Class 3" -> 3)
+            race_class_num = None
+            if race_info.get('race_class'):
+                import re
+                match = re.search(r'\d+', str(race_info['race_class']))
+                if match:
+                    race_class_num = int(match.group())
+            
+            # Parse prize money
+            prize_money = 0.0
+            if race_info.get('prize'):
+                try:
+                    prize_str = str(race_info['prize']).replace('£', '').replace('€', '').replace(',', '').strip()
+                    prize_money = float(prize_str)
+                except:
+                    pass
+            
+            # Convert distance_f to float (defensive check)
+            distance_f_val = race_info.get('distance_f')
+            if distance_f_val is not None:
+                try:
+                    distance_f_val = float(distance_f_val)
+                except (ValueError, TypeError):
+                    distance_f_val = None
+            
+            # Build race context
+            race_context = {
+                'race_id': race_id,
+                'course': race_info.get('course'),
+                'distance_f': distance_f_val,
+                'going': race_info.get('going'),
+                'going_encoded': going_encoded,
+                'surface': race_info.get('surface'),
+                'surface_encoded': surface_encoded,
+                'race_type': race_info.get('type'),
+                'race_class': race_info.get('race_class'),
+                'race_class_encoded': race_class_num,
+                'prize': race_info.get('prize'),
+                'prize_money': prize_money,
+                'age_band': race_info.get('age_band'),
+                'pattern': race_info.get('pattern'),
+                'date': race_date,
+                'region': race_info.get('region')
+            }
+            
+            # Build runner dict compatible with FeatureEngineer
+            # Convert numeric fields to proper types (handle '-' placeholders)
+            def safe_convert(value):
+                """Convert value to float, return None for '-' or invalid values"""
+                if value is None or value == '-':
+                    return None
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+            
+            runner_data = {
+                'runner_id': runner.get('runner_id', 0),
+                'horse_id': runner.get('horse_id'),
+                'trainer_id': runner.get('trainer_id'),
+                'jockey_id': runner.get('jockey_id'),
+                'number': runner.get('number'),
+                'draw': runner.get('draw'),
+                'age': runner.get('age'),
+                'lbs': safe_convert(runner.get('lbs')),
+                'weight_lbs_combined': safe_convert(runner.get('lbs')),  # FeatureEngineer looks for this key
+                'ofr': safe_convert(runner.get('ofr')),
+                'rpr': safe_convert(runner.get('rpr')),
+                'ts': safe_convert(runner.get('ts')),
+                'headgear': runner.get('headgear'),
+                'form': runner.get('form')
+            }
+            
+            # Generate features (this will compute all ML features)
+            # result is None for upcoming races (no historical result yet)
+            features = self.feature_engineer.compute_runner_features(
+                runner_data, race_context, result=None
+            )
+            
+            return features
+            
+        except Exception as e:
+            import traceback
+            print(f"Error generating features for runner {runner.get('horse_name')}: {e}")
+            print(f"Runner data: ofr={runner.get('ofr')}, rpr={runner.get('rpr')}, ts={runner.get('ts')}, lbs={runner.get('lbs')}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return None
+    
+    def _prepare_feature_matrix(self, features_list: List[Dict]) -> np.ndarray:
+        """Convert feature dictionaries to numpy array matching model's expected features"""
+        X = np.zeros((len(features_list), len(self.feature_columns)))
+        
+        for i, features in enumerate(features_list):
+            for j, col in enumerate(self.feature_columns):
+                value = features.get(col, 0)
+                # Handle None values
+                if value is None:
+                    value = 0
+                # Convert to float
+                try:
+                    X[i, j] = float(value)
+                except (ValueError, TypeError):
+                    X[i, j] = 0
+        
+        return X
+    
+    def _scores_to_probabilities(self, scores: np.ndarray) -> np.ndarray:
+        """
+        Convert ranking scores to probabilities using softmax
+        
+        Ranking model outputs relative scores (higher = better).
+        Softmax converts these to valid probabilities that sum to 1.0.
+        
+        This is the mathematically correct way to get probabilities from
+        a ranking model - no manual normalization needed!
+        
+        Args:
+            scores: Ranking scores from model (higher = better)
+            
+        Returns:
+            Probabilities that sum to 1.0
+        """
+        # Softmax: exp(score) / sum(exp(scores))
+        # Subtract max for numerical stability (prevents overflow)
+        exp_scores = np.exp(scores - np.max(scores))
+        probabilities = exp_scores / exp_scores.sum()
+        
+        return probabilities
+    
+    def _calculate_ranks(self, probabilities: np.ndarray) -> np.ndarray:
+        """Calculate predicted ranks from probabilities (1 = highest prob)"""
+        return np.argsort(-probabilities) + 1
+    
+    def _calculate_confidence(self, probabilities: np.ndarray) -> str:
+        """
+        Calculate overall confidence level for predictions
+        High confidence = clear favorite (top prob >> others)
+        Low confidence = many similar probabilities
+        """
+        sorted_probs = np.sort(probabilities)[::-1]
+        
+        if len(sorted_probs) < 2:
+            return "Medium"
+        
+        # Difference between top and second
+        gap = sorted_probs[0] - sorted_probs[1]
+        
+        if gap > 0.15:
+            return "High"
+        elif gap > 0.08:
+            return "Medium"
+        else:
+            return "Low"
+    
+    def _get_feature_contributions(self, features: Dict, probability: float, top_n: int = 3) -> List[Dict]:
+        """
+        Get top N features contributing to prediction
+        Uses feature importance * feature value as contribution score
+        """
+        contributions = []
+        
+        for feature, value in features.items():
+            if feature in self.feature_importance and feature in self.feature_columns:
+                # Skip if value is None or 0
+                if value is None or value == 0:
+                    continue
+                
+                # Convert value to float, skip if conversion fails (e.g., '-' placeholders)
+                try:
+                    float_value = float(value)
+                except (ValueError, TypeError):
+                    continue
+                
+                if float_value == 0:
+                    continue
+                
+                importance = self.feature_importance[feature]
+                # Contribution = importance * normalized value
+                contribution = importance * float_value
+                contributions.append({
+                    'feature': feature,
+                    'value': float_value,
+                    'contribution': contribution
+                })
+        
+        # Sort by absolute contribution
+        contributions.sort(key=lambda x: abs(x['contribution']), reverse=True)
+        
+        return contributions[:top_n]
+    
+    def _check_value_bet(self, predicted_prob: float, ofr: Optional[float]) -> Optional[str]:
+        """
+        Check if this is a value bet based on predicted probability
+        
+        Args:
+            predicted_prob: Model's predicted win probability (normalized within race)
+            ofr: Official rating or odds (if available)
+            
+        Returns:
+            "Value Bet!" if predicted prob significantly exceeds implied prob from odds
+        """
+        # Thresholds adjusted for normalized probabilities
+        # In a typical race with 10-15 runners, average probability is 7-10%
+        # Strong picks should be significantly above average
+        if predicted_prob > 0.20:  # >20% = very strong favorite
+            return "⭐ Strong Pick"
+        elif predicted_prob > 0.12:  # >12% = above average confidence
+            return "✓ Good Chance"
+        else:
+            return None
+    
+    def close(self):
+        """Close database connections"""
+        if self.feature_engineer:
+            self.feature_engineer.close()
+

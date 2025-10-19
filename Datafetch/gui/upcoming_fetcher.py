@@ -256,8 +256,6 @@ class UpcomingRacesFetcher(QThread):
         
         races_count = 0
         
-        print(f"Processing {len(racecards)} racecards for {date}")
-        
         try:
             for racecard in racecards:
                 race_id = racecard.get('race_id')
@@ -270,7 +268,7 @@ class UpcomingRacesFetcher(QThread):
                 
                 # Insert race
                 cursor.execute('''
-                    INSERT OR IGNORE INTO races (
+                    INSERT INTO races (
                         race_id, course, course_id, date, off_time, off_dt, race_name,
                         distance_round, distance, distance_f, region, pattern, sex_restriction,
                         race_class, type, age_band, rating_band, prize, field_size,

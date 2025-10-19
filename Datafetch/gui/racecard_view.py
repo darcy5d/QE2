@@ -9,6 +9,8 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont, QColor, QCursor
 from typing import Dict, Any, Optional
 
+from .styles import COLORS, TABLE_STYLE
+
 
 class ClickableLabel(QLabel):
     """Label that emits a signal when clicked"""
@@ -20,7 +22,7 @@ class ClickableLabel(QLabel):
         self.entity_id = entity_id
         self.entity_name = entity_name
         self.setCursor(QCursor(Qt.PointingHandCursor))
-        self.setStyleSheet("color: white; text-decoration: underline;")
+        self.setStyleSheet(f"color: {COLORS['accent_blue']}; text-decoration: underline;")
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -39,6 +41,14 @@ class RacecardView(QWidget):
     
     def setup_ui(self):
         """Setup the racecard view UI"""
+        # Apply dark theme
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['bg_primary']};
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
@@ -48,6 +58,7 @@ class RacecardView(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setStyleSheet(f"QScrollArea {{ background-color: {COLORS['bg_primary']}; border: none; }}")
         
         # Content widget
         self.content_widget = QWidget()

@@ -204,8 +204,11 @@ class UpcomingRacesView(QWidget):
             self.content_layout.addWidget(no_data)
             return
         
+        # Convert to list first (groupby consumes iterator)
+        races_list = list(races)
+        
         # Group by date
-        for date, date_races in groupby(races, key=lambda r: r['date']):
+        for date, date_races in groupby(races_list, key=lambda r: r['date']):
             # Date header
             date_header = QLabel(f"📅 {date}")
             date_header.setStyleSheet("""

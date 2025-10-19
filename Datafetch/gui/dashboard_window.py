@@ -14,6 +14,9 @@ from .main_window import MainWindow as RacecardWindow
 from .data_fetch_view import DataFetchView
 from .data_exploration_view import DataExplorationView
 from .upcoming_races_view import UpcomingRacesView
+from .ml_features_view import MLFeaturesView
+from .ml_training_view import MLTrainingView
+from .predictions_view import PredictionsView
 
 
 class DashboardWindow(QMainWindow):
@@ -75,6 +78,18 @@ class DashboardWindow(QMainWindow):
         self.upcoming_races_view = UpcomingRacesView()
         self.view_stack.addWidget(self.upcoming_races_view)
         
+        # ML Features view
+        self.ml_features_view = MLFeaturesView(self.db)
+        self.view_stack.addWidget(self.ml_features_view)
+        
+        # ML Training view
+        self.ml_training_view = MLTrainingView(self.db)
+        self.view_stack.addWidget(self.ml_training_view)
+        
+        # Predictions view
+        self.predictions_view = PredictionsView(self.db)
+        self.view_stack.addWidget(self.predictions_view)
+        
         main_layout.addWidget(self.view_stack)
         
         central_widget.setLayout(main_layout)
@@ -88,6 +103,9 @@ class DashboardWindow(QMainWindow):
         self.nav_ribbon.upcoming_clicked.connect(self.show_upcoming)
         self.nav_ribbon.racecard_clicked.connect(self.show_racecard)
         self.nav_ribbon.exploration_clicked.connect(self.show_exploration)
+        self.nav_ribbon.ml_features_clicked.connect(self.show_ml_features)
+        self.nav_ribbon.ml_training_clicked.connect(self.show_ml_training)
+        self.nav_ribbon.predictions_clicked.connect(self.show_predictions)
         
         # Dashboard tiles
         self.dashboard_view.racecard_clicked.connect(self.show_racecard)
@@ -130,6 +148,24 @@ class DashboardWindow(QMainWindow):
         """Show data exploration view"""
         self.nav_ribbon.set_active('exploration')
         self.view_stack.setCurrentWidget(self.data_exploration_view)
+    
+    @Slot()
+    def show_ml_features(self):
+        """Show ML features view"""
+        self.nav_ribbon.set_active('ml_features')
+        self.view_stack.setCurrentWidget(self.ml_features_view)
+    
+    @Slot()
+    def show_ml_training(self):
+        """Show ML training view"""
+        self.nav_ribbon.set_active('ml_training')
+        self.view_stack.setCurrentWidget(self.ml_training_view)
+    
+    @Slot()
+    def show_predictions(self):
+        """Show predictions view"""
+        self.nav_ribbon.set_active('predictions')
+        self.view_stack.setCurrentWidget(self.predictions_view)
     
     @Slot()
     def on_fetch_completed(self):

@@ -6,12 +6,11 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton,
                                 QTableWidget, QTableWidgetItem, QHeaderView,
                                 QScrollArea, QHBoxLayout)
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor, QCursor
 from typing import Dict, Any
 
-from PySide6.QtGui import QColor, QCursor
-
 from .racecard_view import ClickableLabel
+from .styles import COLORS, TABLE_STYLE
 
 
 class ProfileView(QWidget):
@@ -27,6 +26,14 @@ class ProfileView(QWidget):
     
     def setup_ui(self):
         """Setup the profile view UI"""
+        # Apply dark theme
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['bg_primary']};
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)

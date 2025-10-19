@@ -10,6 +10,7 @@ from PySide6.QtGui import QFont
 from datetime import datetime, timedelta
 
 from .database import DatabaseHelper
+from .combined_fetcher_worker import CombinedFetcherWorker
 
 
 class DataFetchView(QWidget):
@@ -288,21 +289,19 @@ class DataFetchView(QWidget):
         
         # Import and run fetcher worker
         # This will be implemented in the next step
-        from .fetcher_worker import FetcherWorker
-        
-        self.worker = FetcherWorker(self.db, end_date)
+        self.worker = CombinedFetcherWorker(self.db, end_date)
         self.worker.progress.connect(self.on_progress)
         self.worker.status.connect(self.on_status)
         self.worker.finished.connect(self.on_finished)
         self.worker.error.connect(self.on_error)
         self.worker.start()
     
-    def on_progress(self, current: int, total: int):
+    def on_progress(self, current: int, total: int, phase: str):
         """Update progress bar"""
         if total > 0:
             percentage = int((current / total) * 100)
             self.progress_bar.setValue(percentage)
-            self.progress_bar.setFormat(f"{current}/{total} dates ({percentage}%)")
+            self.progress_bar.setFormat(f"{phase}: {current}/{total} ({percentage}%)")
     
     def on_status(self, message: str):
         """Update status label"""

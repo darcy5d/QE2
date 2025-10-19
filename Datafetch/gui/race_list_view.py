@@ -9,6 +9,8 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont, QColor
 from typing import List, Dict, Any
 
+from .styles import COLORS, TABLE_STYLE
+
 
 class RaceListView(QWidget):
     """Widget to display filtered list of races"""
@@ -24,6 +26,14 @@ class RaceListView(QWidget):
     
     def setup_ui(self):
         """Setup the race list view UI"""
+        # Apply dark theme to widget
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['bg_primary']};
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
@@ -31,20 +41,24 @@ class RaceListView(QWidget):
         # Header label
         self.header_label = QLabel()
         header_font = QFont()
-        header_font.setPointSize(14)
+        header_font.setPointSize(16)
         header_font.setBold(True)
         self.header_label.setFont(header_font)
+        self.header_label.setStyleSheet(f"color: {COLORS['text_primary']};")
         layout.addWidget(self.header_label)
         
         # Separator
         self.separator = QLabel("═" * 80)
-        self.separator.setStyleSheet("color: #333;")
+        self.separator.setStyleSheet(f"color: {COLORS['border_medium']};")
         layout.addWidget(self.separator)
         
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(['Date', 'Time', 'Course', 'Race Name', 'Class', 'Field'])
+        
+        # Apply dark theme table style
+        self.table.setStyleSheet(TABLE_STYLE)
         
         # Set column widths
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Date
@@ -55,7 +69,7 @@ class RaceListView(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Field
         
         # Table settings
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)  # Disabled for dark theme
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)

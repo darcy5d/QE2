@@ -47,7 +47,7 @@ class DataExplorationView(QWidget):
         tables_label = QLabel("TABLES")
         tables_font = QFont()
         tables_font.setBold(True)
-        tables_font.setPointSize(12)
+        tables_font.setPointSize(14)
         tables_label.setFont(tables_font)
         tables_label.setStyleSheet("color: white; padding: 10px;")
         left_layout.addWidget(tables_label)
@@ -61,7 +61,7 @@ class DataExplorationView(QWidget):
                 border: none;
                 border-radius: 4px;
                 padding: 8px;
-                font-size: 11px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #357ABD;
@@ -77,7 +77,7 @@ class DataExplorationView(QWidget):
                 background-color: #333;
                 color: white;
                 border: none;
-                font-size: 11px;
+                font-size: 13px;
             }
             QListWidget::item {
                 padding: 8px;
@@ -107,7 +107,7 @@ class DataExplorationView(QWidget):
         self.title_label = QLabel("DATA EXPLORATION")
         title_font = QFont()
         title_font.setBold(True)
-        title_font.setPointSize(18)
+        title_font.setPointSize(20)
         self.title_label.setFont(title_font)
         self.title_label.setStyleSheet("color: white; padding: 10px;")
         right_layout.addWidget(self.title_label)
@@ -175,7 +175,7 @@ class DataExplorationView(QWidget):
         
         # Show refresh message
         refresh_label = QLabel("Data refreshed! Select a table to view statistics.")
-        refresh_label.setStyleSheet("color: #4A90E2; font-size: 14px; padding: 20px;")
+        refresh_label.setStyleSheet("color: #4A90E2; font-size: 16px; padding: 20px;")
         self.content_layout.addWidget(refresh_label)
         self.content_layout.addStretch()
     
@@ -212,7 +212,7 @@ Total Columns: {table_info['column_count']}
             overview_text += f"\nDate Range: {min_date} to {max_date}"
         
         overview_label = QLabel(overview_text)
-        overview_label.setStyleSheet("color: white; font-size: 12px; padding: 10px;")
+        overview_label.setStyleSheet("color: white; font-size: 14px; padding: 10px;")
         overview_layout.addWidget(overview_label)
         
         # Export button
@@ -225,7 +225,7 @@ Total Columns: {table_info['column_count']}
                 border: none;
                 border-radius: 4px;
                 padding: 8px 16px;
-                font-size: 11px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #357ABD;
@@ -288,7 +288,7 @@ Total Columns: {table_info['column_count']}
         header = QLabel(f"▸ {col_name}")
         header_font = QFont()
         header_font.setBold(True)
-        header_font.setPointSize(11)
+        header_font.setPointSize(13)
         header.setFont(header_font)
         header.setStyleSheet("color: #4A90E2; padding: 5px;")
         header.setCursor(Qt.PointingHandCursor)
@@ -309,7 +309,7 @@ Unique Values: {stats['unique_count']:,}
         """.strip()
         
         basic_label = QLabel(basic_info)
-        basic_label.setStyleSheet("color: #CCC; font-size: 10px; padding: 5px;")
+        basic_label.setStyleSheet("color: #CCC; font-size: 12px; padding: 5px;")
         stats_layout.addWidget(basic_label)
         
         # Type-specific statistics
@@ -322,7 +322,7 @@ Range: {stats['range']}
             """.strip()
             
             numeric_label = QLabel(numeric_info)
-            numeric_label.setStyleSheet("color: #9EE09E; font-size: 10px; padding: 5px;")
+            numeric_label.setStyleSheet("color: #9EE09E; font-size: 12px; padding: 5px;")
             stats_layout.addWidget(numeric_label)
         
         elif stats.get('analysis_type') == 'text':
@@ -334,7 +334,7 @@ Range: {stats['range']}
             text_info += f"\nLength: Min={stats['min_length']} | Avg={stats['avg_length']} | Max={stats['max_length']}"
             
             text_label = QLabel(text_info)
-            text_label.setStyleSheet("color: #FFE4B5; font-size: 10px; padding: 5px;")
+            text_label.setStyleSheet("color: #FFE4B5; font-size: 12px; padding: 5px;")
             stats_layout.addWidget(text_label)
         
         elif stats.get('analysis_type') == 'date':
@@ -346,7 +346,7 @@ Range: {stats['range']}
                     date_info += f"  • {month}: {count:,}\n"
             
             date_label = QLabel(date_info)
-            date_label.setStyleSheet("color: #ADD8E6; font-size: 10px; padding: 5px;")
+            date_label.setStyleSheet("color: #ADD8E6; font-size: 12px; padding: 5px;")
             stats_layout.addWidget(date_label)
         
         # Export button for column
@@ -359,7 +359,7 @@ Range: {stats['range']}
                 border: none;
                 border-radius: 3px;
                 padding: 5px 10px;
-                font-size: 9px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #666;
