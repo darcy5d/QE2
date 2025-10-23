@@ -283,6 +283,41 @@ class InTheMoneyView(QWidget):
         
         row2.addSpacing(20)
         
+        # Race Type Filter
+        race_type_label = QLabel("Race Type:")
+        race_type_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
+        race_type_label.setToolTip("Select which race types to bet on\nFlat: Fastest, shortest races with draw importance\nHurdle/Chase: Jump racing (models not available yet)")
+        row2.addWidget(race_type_label)
+        
+        self.race_type_combo = QComboBox()
+        self.race_type_combo.addItems([
+            "🏇 Flat Only (Recommended)",
+            "🐴 Hurdle Only (Not Available)",
+            "🐴 Chase Only (Not Available)",
+            "⚠️ All Types (Not Recommended)"
+        ])
+        
+        # Disable non-Flat options for now (no models trained yet)
+        for i in range(1, self.race_type_combo.count()):
+            model_item = self.race_type_combo.model().item(i)
+            model_item.setEnabled(False)
+            model_item.setToolTip("Model not available yet - train Hurdle/Chase model first")
+        
+        self.race_type_combo.setCurrentIndex(0)  # Default to Flat Only
+        self.race_type_combo.currentTextChanged.connect(self.on_settings_changed)
+        self.race_type_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['bg_secondary']};
+                border: 1px solid {COLORS['border_medium']};
+                border-radius: 4px;
+                padding: 5px;
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        row2.addWidget(self.race_type_combo)
+        
+        row2.addSpacing(20)
+        
         # Bet type filters
         filters_label = QLabel("Show:")
         filters_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
@@ -535,20 +570,60 @@ class InTheMoneyView(QWidget):
                 )
                 return []
         
-        # Get race IDs
+        # Determine race type filter from UI
+        race_type_text = self.race_type_combo.currentText()
+        if "Flat Only" in race_type_text:
+            race_type = 'Flat'
+        elif "Hurdle Only" in race_type_text:
+            race_type = 'Hurdle'
+        elif "Chase Only" in race_type_text:
+            race_type = 'Chase'
+        else:
+            race_type = None  # All types (not recommended)
+        
+        # Get race IDs with type filtering
         try:
             conn = sqlite3.connect(str(self.upcoming_db_path))
             cursor = conn.cursor()
-            cursor.execute("SELECT race_id, course, date, off_time FROM races ORDER BY off_time")
+            
+            # Show race type breakdown
+            cursor.execute("SELECT type, COUNT(*) FROM races GROUP BY type")
+            type_counts = cursor.fetchall()
+            print(f"\n📊 Upcoming races by type:")
+            for row in type_counts:
+                print(f"   {row[0]}: {row[1]} races")
+            
+            # Apply filter
+            if race_type:
+                cursor.execute("""
+                    SELECT race_id, course, date, off_time, type 
+                    FROM races 
+                    WHERE type = ?
+                    ORDER BY off_time
+                """, (race_type,))
+                print(f"✅ Filtering to {race_type} races only")
+            else:
+                cursor.execute("""
+                    SELECT race_id, course, date, off_time, type 
+                    FROM races 
+                    ORDER BY off_time
+                """)
+                print(f"⚠️  Loading ALL race types (may have unreliable predictions)")
+            
             races = cursor.fetchall()
             conn.close()
+            
+            print(f"   Analyzing {len(races)} races for value bets...\n")
             
             if not races:
                 return []
             
-            # Initialize predictor
+            # Initialize predictor with matching race type
             racing_db_path = Path(__file__).parent.parent / "racing_pro.db"
-            predictor = ModelPredictor(racing_db_path=str(racing_db_path))
+            predictor = ModelPredictor(
+                racing_db_path=str(racing_db_path),
+                race_type=race_type or 'Flat'
+            )
             
             # Generate predictions for each race
             all_predictions = []
@@ -719,13 +794,17 @@ class InTheMoneyView(QWidget):
             race_name = race_info.get('race_name', '')
             distance = race_info.get('distance', '')
             race_class = race_info.get('race_class', '')
+            race_type = race_info.get('type', 'Unknown')
+            
+            # Add emoji for race type
+            type_emoji = '🏇' if race_type == 'Flat' else '🐴'
             
             if race_name:
-                # If race name exists, show it with time and class
-                race_key = f"{time} - {race_name} ({distance}, {race_class})" if race_class else f"{time} - {race_name} ({distance})"
+                # If race name exists, show it with time, type, and class
+                race_key = f"{time} - {race_name} {type_emoji} ({race_type}, {distance}, {race_class})" if race_class else f"{time} - {race_name} {type_emoji} ({race_type}, {distance})"
             else:
-                # Fallback to original format if no name
-                race_key = f"{time} - {distance} - {race_class}"
+                # Fallback to original format with type
+                race_key = f"{time} - {distance} - {race_type} {type_emoji} - {race_class}"
             
             organized[date_str][course][race_key].append(rec)
         
@@ -835,7 +914,7 @@ class InTheMoneyView(QWidget):
                 
                 # Write header
                 writer.writerow([
-                    'Date', 'Course', 'Time', 'Race Details', 'Bet Type', 'Selection',
+                    'Date', 'Course', 'Time', 'Race Type', 'Race Details', 'Bet Type', 'Selection',
                     'Our Odds', 'Market Odds', 'Stake', 'EV %', 'Potential Profit'
                 ])
                 
@@ -848,10 +927,11 @@ class InTheMoneyView(QWidget):
                     else:
                         selection = rec['combination']
                     
-                    # Format race details with name if available
+                    # Format race details with name and type
                     race_name = race_info.get('race_name', '')
                     distance = race_info.get('distance', '')
                     race_class = race_info.get('race_class', '')
+                    race_type = race_info.get('type', 'Unknown')
                     
                     if race_name:
                         race_details = f"{race_name} ({distance}, {race_class})" if race_class else f"{race_name} ({distance})"
@@ -871,6 +951,7 @@ class InTheMoneyView(QWidget):
                         race_info.get('date', ''),
                         race_info.get('course', ''),
                         race_info.get('time', '').split()[-1] if race_info.get('time') else '',
+                        race_type,  # Add race type column
                         race_details,
                         bet_type,
                         selection,
