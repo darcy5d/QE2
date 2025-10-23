@@ -45,6 +45,8 @@ class PredictionWorker(QThread):
             # Generate predictions for each race
             all_predictions = []
             total_races = len(self.race_ids)
+            total_runners = 0
+            predicted_runners = 0
             
             for i, race_id in enumerate(self.race_ids, 1):
                 try:
@@ -57,9 +59,17 @@ class PredictionWorker(QThread):
                     if result:
                         all_predictions.append(result)
                         race_name = result['race_info'].get('course', 'Unknown')
-                        print(f"✓ [{i}/{total_races}] {race_id} - {race_name}")
+                        race_time = result['race_info'].get('time', '')
+                        
+                        # Count runners
+                        num_predictions = len(result['predictions'])
+                        predicted_runners += num_predictions
+                        
+                        # Get total runners from race (not just predicted ones)
+                        # This is already calculated but we need to track it
+                        print(f"✓ [{i}/{total_races}] {race_id} - {race_name} {race_time} ({num_predictions} runners)")
                     else:
-                        print(f"⚠ [{i}/{total_races}] {race_id} - No predictions generated (no runners found)")
+                        print(f"⚠ [{i}/{total_races}] {race_id} - No predictions generated")
                 
                 except Exception as e:
                     import traceback
@@ -68,14 +78,19 @@ class PredictionWorker(QThread):
                     continue
             
             # Emit results
-            print(f"\n{'='*60}")
+            print(f"\n{'='*70}")
             print(f"🏁 PREDICTION SUMMARY")
-            print(f"{'='*60}")
-            print(f"Total races: {total_races}")
-            print(f"Successful: {len(all_predictions)}")
-            print(f"Failed: {total_races - len(all_predictions)}")
+            print(f"{'='*70}")
+            print(f"Total races processed: {total_races}")
+            print(f"Races with predictions: {len(all_predictions)}")
+            print(f"Races failed: {total_races - len(all_predictions)}")
             print(f"Success rate: {len(all_predictions)/total_races*100:.1f}%")
-            print(f"{'='*60}\n")
+            print(f"")
+            print(f"Total runners predicted: {predicted_runners}")
+            if len(all_predictions) > 0:
+                avg_runners = predicted_runners / len(all_predictions)
+                print(f"Average runners per race: {avg_runners:.1f}")
+            print(f"{'='*70}\n")
             
             if all_predictions:
                 self.predictions_ready.emit(all_predictions)

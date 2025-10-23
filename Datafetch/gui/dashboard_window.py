@@ -17,6 +17,7 @@ from .upcoming_races_view import UpcomingRacesView
 from .ml_features_view import MLFeaturesView
 from .ml_training_view import MLTrainingView
 from .predictions_view import PredictionsView
+from .in_the_money_view import InTheMoneyView
 
 
 class DashboardWindow(QMainWindow):
@@ -90,6 +91,10 @@ class DashboardWindow(QMainWindow):
         self.predictions_view = PredictionsView(self.db)
         self.view_stack.addWidget(self.predictions_view)
         
+        # In The Money view
+        self.in_the_money_view = InTheMoneyView(self.db)
+        self.view_stack.addWidget(self.in_the_money_view)
+        
         main_layout.addWidget(self.view_stack)
         
         central_widget.setLayout(main_layout)
@@ -106,6 +111,7 @@ class DashboardWindow(QMainWindow):
         self.nav_ribbon.ml_features_clicked.connect(self.show_ml_features)
         self.nav_ribbon.ml_training_clicked.connect(self.show_ml_training)
         self.nav_ribbon.predictions_clicked.connect(self.show_predictions)
+        self.nav_ribbon.in_the_money_clicked.connect(self.show_in_the_money)
         
         # Dashboard tiles
         self.dashboard_view.racecard_clicked.connect(self.show_racecard)
@@ -166,6 +172,12 @@ class DashboardWindow(QMainWindow):
         """Show predictions view"""
         self.nav_ribbon.set_active('predictions')
         self.view_stack.setCurrentWidget(self.predictions_view)
+    
+    @Slot()
+    def show_in_the_money(self):
+        """Show In The Money betting recommendations view"""
+        self.nav_ribbon.set_active('in_the_money')
+        self.view_stack.setCurrentWidget(self.in_the_money_view)
     
     @Slot()
     def on_fetch_completed(self):

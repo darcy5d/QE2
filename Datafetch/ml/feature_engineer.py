@@ -21,24 +21,52 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def dict_factory(cursor, row):
+    """
+    Convert sqlite3 query results to dictionaries
+    
+    This allows using .get() method which sqlite3.Row doesn't support.
+    Standard SQLite pattern for Python dict compatibility.
+    
+    Args:
+        cursor: Database cursor with column descriptions
+        row: Row tuple from query result
+        
+    Returns:
+        Dictionary mapping column names to values
+    """
+    fields = [column[0] for column in cursor.description]
+    return {key: value for key, value in zip(fields, row)}
+
+
 class FeatureEngineer:
     """Generate ML features for race runners"""
     
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, upcoming_db_path: Path = None):
         self.db_path = db_path
+        self.upcoming_db_path = upcoming_db_path
         self.conn = None
+        self.upcoming_conn = None
         self.form_parser = FormParser()
         
     def connect(self):
-        """Connect to database"""
+        """Connect to database(s)"""
         self.conn = sqlite3.connect(str(self.db_path))
-        self.conn.row_factory = sqlite3.Row
+        self.conn.row_factory = dict_factory  # Changed from sqlite3.Row to support .get()
         self.conn.execute("PRAGMA foreign_keys = ON")
         
+        # Connect to upcoming races database if provided
+        if self.upcoming_db_path:
+            self.upcoming_conn = sqlite3.connect(str(self.upcoming_db_path))
+            self.upcoming_conn.row_factory = dict_factory
+            logger.info(f"✓ Connected to upcoming races database: {self.upcoming_db_path}")
+        
     def close(self):
-        """Close connection"""
+        """Close connection(s)"""
         if self.conn:
             self.conn.close()
+        if self.upcoming_conn:
+            self.upcoming_conn.close()
     
     def get_races_with_results(self, limit: Optional[int] = None) -> List[str]:
         """Get race_ids that have results data"""
@@ -147,9 +175,13 @@ class FeatureEngineer:
         cursor.execute("""
             SELECT 
                 r.runner_id, r.horse_id, r.trainer_id, r.jockey_id,
-                r.number, r.draw, h.age, r.lbs as weight_lbs_combined,
+                r.number, r.draw, COALESCE(r.age, h.age) as age, 
+                r.lbs as weight_lbs_combined,
                 r.ofr, r.rpr, r.ts, r.headgear, r.form,
-                h.sex, h.sire_id, h.dam_id,
+                COALESCE(r.sex, h.sex) as sex,
+                COALESCE(r.sex_code, h.sex_code) as sex_code,
+                h.sire_id, h.dam_id,
+                r.trainer_14d_runs, r.trainer_14d_wins, r.trainer_14d_percent,
                 t.name as trainer_name,
                 j.name as jockey_name
             FROM runners r
@@ -160,7 +192,7 @@ class FeatureEngineer:
             ORDER BY r.number
         """, (race_id,))
         
-        return [dict(row) for row in cursor.fetchall()]
+        return list(cursor.fetchall())  # Already dicts via dict_factory
     
     def get_runner_result(self, race_id: str, horse_id: str) -> Optional[Dict]:
         """Get result for a runner"""
@@ -173,7 +205,7 @@ class FeatureEngineer:
         """, (race_id, horse_id))
         
         row = cursor.fetchone()
-        return dict(row) if row else None
+        return row if row else None  # Already dict via dict_factory
     
     def get_horse_career_stats(self, horse_id: str, race_date: str = None) -> Dict:
         """
@@ -548,6 +580,136 @@ class FeatureEngineer:
             return int(np.median(style_scores))
         return 3
     
+    def compute_odds_features(self, runner_id: int) -> Dict:
+        """
+        Compute 7 standalone odds features
+        
+        These complement (not replace) RPR/TS features
+        """
+        # Use upcoming_conn if available (for predictions), else use main conn (for training)
+        conn = self.upcoming_conn if self.upcoming_conn else self.conn
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT avg_decimal, median_decimal, min_decimal, max_decimal,
+                   bookmaker_count, implied_probability, is_favorite, favorite_rank
+            FROM runner_market_odds WHERE runner_id = ?
+        ''', (runner_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            # Use field averages if available (smart defaults)
+            field_odds_avg = getattr(self, '_current_field_odds_avg', {'count': 0})
+            if field_odds_avg.get('count', 0) > 0:
+                logger.debug(f"Using field average odds for runner_id={runner_id} (no individual odds)")
+                return {
+                    'odds_implied_prob': field_odds_avg.get('avg_implied_prob'),
+                    'odds_is_favorite': 0,
+                    'odds_favorite_rank': field_odds_avg.get('avg_rank', 8),
+                    'odds_decimal': field_odds_avg.get('avg_decimal'),
+                    'odds_bookmaker_count': field_odds_avg.get('avg_bookmaker_count', 0),
+                    'odds_spread': field_odds_avg.get('avg_spread', 2.0),
+                    'odds_market_stability': 0.8  # Reasonable default
+                }
+            
+            # No odds at all - use None defaults
+            if self.upcoming_conn:
+                logger.debug(f"No odds data found for runner_id={runner_id} in upcoming database")
+            return {
+                'odds_implied_prob': None,
+                'odds_is_favorite': 0,
+                'odds_favorite_rank': 99,
+                'odds_decimal': None,
+                'odds_bookmaker_count': 0,
+                'odds_spread': None,
+                'odds_market_stability': None
+            }
+        
+        avg_dec = row.get('avg_decimal')
+        med_dec = row.get('median_decimal')
+        min_dec = row.get('min_decimal')
+        max_dec = row.get('max_decimal')
+        bk_count = row.get('bookmaker_count')
+        impl_prob = row.get('implied_probability')
+        is_fav = row.get('is_favorite')
+        fav_rank = row.get('favorite_rank')
+        
+        # Calculate spread and stability
+        odds_spread = None
+        if max_dec is not None and min_dec is not None:
+            odds_spread = max_dec - min_dec
+        
+        odds_stability = None
+        if max_dec is not None and min_dec is not None and max_dec > 0:
+            odds_stability = min_dec / max_dec
+        
+        return {
+            'odds_implied_prob': impl_prob,           # Market's win probability
+            'odds_is_favorite': is_fav or 0,          # Binary: is this the favorite?
+            'odds_favorite_rank': fav_rank or 99,     # 1=fav, 2=2nd fav, etc.
+            'odds_decimal': avg_dec,                  # Average decimal odds
+            'odds_bookmaker_count': bk_count or 0,    # Market liquidity
+            'odds_spread': odds_spread,               # Price disagreement
+            'odds_market_stability': odds_stability   # Consensus level
+        }
+    
+    def compute_demographic_features(self, runner_data: Dict) -> Dict:
+        """
+        Compute features from age, sex, breeding
+        """
+        age = runner_data.get('age')
+        sex = runner_data.get('sex_code', '').upper() if runner_data.get('sex_code') else ''
+        
+        # Age features
+        try:
+            age_int = int(age) if age else None
+        except:
+            age_int = None
+        
+        # Sex encoding (C=colt, F=filly, G=gelding, H=horse, M=mare)
+        sex_encoding = {
+            'C': 1,  # Colt (young male)
+            'F': 2,  # Filly (young female)
+            'G': 3,  # Gelding (castrated male)
+            'H': 4,  # Horse (adult male)
+            'M': 5   # Mare (adult female)
+        }
+        sex_encoded = sex_encoding.get(sex, 0)
+        
+        # Binary indicators
+        is_filly_or_mare = 1 if sex in ['F', 'M'] else 0
+        is_gelding = 1 if sex == 'G' else 0
+        
+        return {
+            'horse_sex_encoded': sex_encoded,
+            'horse_is_filly_mare': is_filly_or_mare,
+            'horse_is_gelding': is_gelding
+        }
+    
+    def compute_trainer_form_features(self, runner_data: Dict) -> Dict:
+        """
+        Compute features from recent trainer performance
+        """
+        trainer_runs = runner_data.get('trainer_14d_runs')
+        trainer_wins = runner_data.get('trainer_14d_wins')
+        trainer_pct = runner_data.get('trainer_14d_percent')
+        
+        try:
+            runs = int(trainer_runs) if trainer_runs else 0
+            wins = int(trainer_wins) if trainer_wins else 0
+            pct = float(trainer_pct) if trainer_pct else 0.0
+        except:
+            runs, wins, pct = 0, 0, 0.0
+        
+        # Hot trainer indicator (>25% win rate in last 14 days with 4+ runs)
+        is_hot_trainer = 1 if (pct > 25.0 and runs >= 4) else 0
+        
+        return {
+            'trainer_14d_runs': runs,
+            'trainer_14d_wins': wins,
+            'trainer_14d_win_pct': pct,
+            'trainer_is_hot': is_hot_trainer
+        }
+    
     def compute_draw_bias(self, course: str, distance_f: float, draw: int, field_size: int, race_date: str = None) -> Dict:
         """
         Compute draw bias features from historical data at this course/distance
@@ -624,9 +786,15 @@ class FeatureEngineer:
         }
     
     def compute_runner_features(self, runner: Dict, race_context: Dict, 
-                                result: Optional[Dict]) -> Dict:
+                                result: Optional[Dict], field_odds_avg: Dict = None) -> Dict:
         """
         Compute all features for a single runner
+        
+        Args:
+            runner: Runner data dictionary
+            race_context: Race context dictionary
+            result: Race result (None for upcoming races)
+            field_odds_avg: Field-level odds statistics for smart defaults
         
         Returns dict with ~50-100 features ready for ML
         """
@@ -634,6 +802,11 @@ class FeatureEngineer:
         trainer_id = runner['trainer_id']
         jockey_id = runner['jockey_id']
         race_date = race_context['date']
+        
+        # Store field_odds_avg for use in compute_odds_features
+        if field_odds_avg is None:
+            field_odds_avg = {'count': 0}
+        self._current_field_odds_avg = field_odds_avg
         
         features = {
             'race_id': race_context['race_id'],
@@ -690,6 +863,14 @@ class FeatureEngineer:
         features['speed_improving'] = pace_features.get('speed_improving', 0)
         features['typical_running_style'] = pace_features.get('typical_running_style', 3)
         
+        # === ODDS FEATURES (NEW) ===
+        odds_features = self.compute_odds_features(runner['runner_id'])
+        features.update(odds_features)
+        
+        # === DEMOGRAPHIC FEATURES (NEW) ===
+        demographic_features = self.compute_demographic_features(runner)
+        features.update(demographic_features)
+        
         # === TRAINER FEATURES ===
         trainer_stats_14d = self.get_trainer_stats(trainer_id, '14d')
         trainer_stats_90d = self.get_trainer_stats(trainer_id, '90d')
@@ -714,6 +895,10 @@ class FeatureEngineer:
                 if self._distance_in_band(race_context['distance_f'], band_name):
                     features['trainer_distance_win_rate'] = band_stats.get('win_rate', 0.0)
                     break
+        
+        # === TRAINER FORM FEATURES (NEW) ===
+        trainer_form_features = self.compute_trainer_form_features(runner)
+        features.update(trainer_form_features)
         
         # === JOCKEY FEATURES ===
         jockey_stats_14d = self.get_jockey_stats(jockey_id, '14d')
@@ -1098,12 +1283,17 @@ class FeatureEngineer:
                     horse_in_top_quartile, tsr_vs_field_avg, pace_pressure_likely,
                     course_distance_draw_bias, draw_position_normalized, low_draw_advantage, high_draw_advantage,
                     odds_rank, opening_odds, final_odds, odds_movement, market_rank,
-                    sire_distance_win_rate, sire_surface_win_rate, dam_produce_win_rate
+                    sire_distance_win_rate, sire_surface_win_rate, dam_produce_win_rate,
+                    odds_implied_prob, odds_is_favorite, odds_favorite_rank, odds_decimal,
+                    odds_bookmaker_count, odds_spread, odds_market_stability,
+                    horse_sex_encoded, horse_is_filly_mare, horse_is_gelding,
+                    trainer_14d_runs, trainer_14d_wins, trainer_14d_win_pct, trainer_is_hot
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, (
                 features['race_id'], features['runner_id'], features['horse_id'],
@@ -1128,13 +1318,21 @@ class FeatureEngineer:
                 features.get('weight_lbs_rank'), features.get('age_rank'),
                 features.get('field_best_rpr'), features.get('field_worst_rpr'), features.get('field_avg_rpr'),
                 features.get('horse_rpr_rank'), features.get('horse_rpr_vs_best'), features.get('horse_rpr_vs_worst'),
-                features.get('field_rpr_spread'), features.get('top_3_rpr_avg'), features.get('horse_in_top_quartile', 0),
+                features.get('field_rpr_spread'), features.get('top_3_rpr_avg'),                 features.get('horse_in_top_quartile', 0),
                 features.get('tsr_vs_field_avg'), features.get('pace_pressure_likely', 0),
                 features.get('course_distance_draw_bias'), features.get('draw_position_normalized'),
                 features.get('low_draw_advantage', 0), features.get('high_draw_advantage', 0),
                 features['odds_rank'], features['opening_odds'], features['final_odds'], 
                 features['odds_movement'], features['market_rank'],
-                features['sire_distance_win_rate'], features['sire_surface_win_rate'], features['dam_produce_win_rate']
+                features['sire_distance_win_rate'], features['sire_surface_win_rate'], features['dam_produce_win_rate'],
+                features.get('odds_implied_prob'), features.get('odds_is_favorite', 0), 
+                features.get('odds_favorite_rank', 99), features.get('odds_decimal'),
+                features.get('odds_bookmaker_count', 0), features.get('odds_spread'), 
+                features.get('odds_market_stability'),
+                features.get('horse_sex_encoded', 0), features.get('horse_is_filly_mare', 0), 
+                features.get('horse_is_gelding', 0),
+                features.get('trainer_14d_runs', 0), features.get('trainer_14d_wins', 0), 
+                features.get('trainer_14d_win_pct', 0.0), features.get('trainer_is_hot', 0)
             ))
         except sqlite3.OperationalError as e:
             # If columns don't exist, log warning and skip (schema needs update)
@@ -1164,64 +1362,69 @@ class FeatureEngineer:
         Process a single race: compute features and targets for all runners
         Returns number of runners processed
         """
-        # Get race context
-        race_context = self.get_race_context_features(race_id)
-        if not race_context:
-            logger.warning(f"No race context for {race_id}")
-            return 0
-        
-        # Get all runners
-        runners = self.get_runners_for_race(race_id)
-        if not runners:
-            logger.warning(f"No runners for race {race_id}")
-            return 0
-        
-        # Compute features for each runner
-        all_features = []
-        all_targets = []
-        
-        for runner in runners:
-            # Get result (if exists)
-            result = self.get_runner_result(race_id, runner['horse_id'])
+        try:
+            # Get race context
+            race_context = self.get_race_context_features(race_id)
+            if not race_context:
+                logger.warning(f"No race context for {race_id}")
+                return 0
             
-            # Compute features
-            features = self.compute_runner_features(runner, race_context, result)
-            all_features.append(features)
+            # Get all runners
+            runners = self.get_runners_for_race(race_id)
+            if not runners:
+                logger.warning(f"No runners for race {race_id}")
+                return 0
             
-            # Compute targets
-            targets = self.compute_target_variables(
-                race_id, runner['horse_id'], runner['runner_id'], result
-            )
-            if targets:
-                all_targets.append(targets)
-        
-        # Compute relative features (modifies in place)
-        all_features = self.compute_relative_features(all_features)
-        
-        # Compute draw bias features now that we have field size and race context
-        for features in all_features:
-            draw = features.get('draw')
-            if draw is not None:
-                draw_bias = self.compute_draw_bias(
-                    race_context.get('course'),
-                    race_context.get('distance_f'),
-                    draw,
-                    features['field_size'],
-                    race_context.get('date')
+            # Compute features for each runner
+            all_features = []
+            all_targets = []
+            
+            for runner in runners:
+                # Get result (if exists)
+                result = self.get_runner_result(race_id, runner['horse_id'])
+                
+                # Compute features
+                features = self.compute_runner_features(runner, race_context, result)
+                all_features.append(features)
+                
+                # Compute targets
+                targets = self.compute_target_variables(
+                    race_id, runner['horse_id'], runner['runner_id'], result
                 )
-                features['course_distance_draw_bias'] = draw_bias['course_distance_draw_bias']
-                features['draw_position_normalized'] = draw_bias['draw_position_normalized']
-                features['low_draw_advantage'] = draw_bias['low_draw_advantage']
-                features['high_draw_advantage'] = draw_bias['high_draw_advantage']
-        
-        # Save to database
-        for features in all_features:
-            self.save_features(features)
-        
-        for targets in all_targets:
-            self.save_targets(targets)
-        
-        return len(all_features)
+                if targets:
+                    all_targets.append(targets)
+            
+            # Compute relative features (modifies in place)
+            all_features = self.compute_relative_features(all_features)
+            
+            # Compute draw bias features now that we have field size and race context
+            for features in all_features:
+                draw = features.get('draw')
+                if draw is not None:
+                    draw_bias = self.compute_draw_bias(
+                        race_context.get('course'),
+                        race_context.get('distance_f'),
+                        draw,
+                        features['field_size'],
+                        race_context.get('date')
+                    )
+                    features['course_distance_draw_bias'] = draw_bias['course_distance_draw_bias']
+                    features['draw_position_normalized'] = draw_bias['draw_position_normalized']
+                    features['low_draw_advantage'] = draw_bias['low_draw_advantage']
+                    features['high_draw_advantage'] = draw_bias['high_draw_advantage']
+            
+            # Save to database
+            for features in all_features:
+                self.save_features(features)
+            
+            for targets in all_targets:
+                self.save_targets(targets)
+            
+            return len(all_features)
+            
+        except Exception as e:
+            logger.warning(f"  ⚠ Error processing {race_id}: {e}")
+            return 0
     
     def generate_features_for_all_races(self, limit: Optional[int] = None):
         """

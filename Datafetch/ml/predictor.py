@@ -18,6 +18,16 @@ sys.path.append(str(Path(__file__).parent.parent))
 from ml.feature_engineer import FeatureEngineer
 
 
+def dict_factory(cursor, row):
+    """
+    Convert sqlite3 query results to dictionaries
+    
+    This allows using .get() method which sqlite3.Row doesn't support.
+    """
+    fields = [column[0] for column in cursor.description]
+    return {key: value for key, value in zip(fields, row)}
+
+
 class ModelPredictor:
     """Generate predictions for upcoming races using trained ML model"""
     
@@ -42,10 +52,11 @@ class ModelPredictor:
         self.feature_columns = None
         self.feature_importance = None
         self.feature_engineer = None
+        self._upcoming_db_connected = False
         
         self._load_model()
         self._load_feature_metadata()
-        self._init_feature_engineer()
+        # Note: feature_engineer will be initialized in predict_race with upcoming_db_path
     
     def _load_model(self):
         """Load trained XGBoost model"""
@@ -78,9 +89,12 @@ class ModelPredictor:
             print("⚠ Feature importance file not found, will use default importance")
             self.feature_importance = {col: 1.0/len(self.feature_columns) for col in self.feature_columns}
     
-    def _init_feature_engineer(self):
+    def _init_feature_engineer(self, upcoming_db_path: str = None):
         """Initialize feature engineer for generating features"""
-        self.feature_engineer = FeatureEngineer(str(self.racing_db_path))
+        self.feature_engineer = FeatureEngineer(
+            db_path=str(self.racing_db_path),
+            upcoming_db_path=upcoming_db_path
+        )
         self.feature_engineer.connect()
     
     def predict_race(self, race_id: str, upcoming_db_path: str) -> Dict:
@@ -94,27 +108,83 @@ class ModelPredictor:
         Returns:
             Dictionary with race info and predictions for each runner
         """
+        # Initialize or update feature engineer with upcoming database connection
+        if not self.feature_engineer or not self._upcoming_db_connected:
+            if self.feature_engineer:
+                self.feature_engineer.close()
+            self._init_feature_engineer(upcoming_db_path)
+            self._upcoming_db_connected = True
+            print(f"✓ Feature engineer connected to upcoming database: {upcoming_db_path}")
+        
         # Get race details and runners from upcoming_races.db
         race_data = self._get_race_data(race_id, upcoming_db_path)
         if not race_data:
             return None
         
-        # Generate features for each runner
+        print(f"\n🏇 Processing race: {race_data['race_info'].get('course')} {race_data['race_info'].get('time')}")
+        print(f"   Total runners in race: {len(race_data['runners'])}")
+        
+        # PASS 1: Collect available RPR/TS values to calculate field statistics
+        available_rprs = []
+        available_tss = []
+        
+        for runner in race_data['runners']:
+            rpr = self._safe_convert(runner.get('rpr'))
+            ts = self._safe_convert(runner.get('ts'))
+            
+            if rpr is not None:
+                available_rprs.append(rpr)
+            if ts is not None:
+                available_tss.append(ts)
+        
+        # Calculate field statistics for smart defaults
+        field_stats = {
+            'median_rpr': np.median(available_rprs) if len(available_rprs) >= 3 else None,
+            'avg_rpr': np.mean(available_rprs) if len(available_rprs) >= 1 else None,
+            'median_ts': np.median(available_tss) if len(available_tss) >= 3 else None,
+            'avg_ts': np.mean(available_tss) if len(available_tss) >= 1 else None,
+            'count_rpr': len(available_rprs),
+            'count_ts': len(available_tss)
+        }
+        
+        print(f"   Runners with RPR: {field_stats['count_rpr']}/{len(race_data['runners'])}")
+        print(f"   Runners with TS: {field_stats['count_ts']}/{len(race_data['runners'])}")
+        if field_stats['median_rpr']:
+            print(f"   Field median RPR: {field_stats['median_rpr']:.1f}")
+        
+        # Compute field-level odds statistics for smart defaults
+        field_odds_avg = self._compute_field_odds_stats(race_data['runners'])
+        if field_odds_avg['count'] > 0:
+            print(f"   Runners with odds: {field_odds_avg['count']}/{len(race_data['runners'])}")
+        
+        # PASS 2: Generate features for each runner (with smart defaults)
         features_list = []
         runner_info = []
         
         for runner in race_data['runners']:
-            # Generate features using FeatureEngineer
+            # Generate features using FeatureEngineer (now with field stats and odds stats)
             features = self._generate_runner_features(
                 race_data['race_info'],
-                runner
+                runner,
+                field_stats,
+                field_odds_avg
             )
             
             if features:
                 features_list.append(features)
                 runner_info.append(runner)
         
+        print(f"   Successfully generated features for: {len(features_list)}/{len(race_data['runners'])} runners")
+        
+        # Diagnostic: Check odds feature population
+        odds_count = sum(1 for f in features_list if f.get('odds_decimal') is not None and f.get('odds_decimal') > 0)
+        if odds_count > 0:
+            print(f"   ✓ Odds features populated: {odds_count}/{len(features_list)} runners ({odds_count*100/len(features_list):.1f}%)")
+        else:
+            print(f"   ⚠️  No odds data available for this race (using defaults)")
+        
         if not features_list:
+            print(f"   ❌ No features generated for any runner!")
             return None
         
         # Compute relative features (field size, rating_vs_avg, etc.)
@@ -155,7 +225,10 @@ class ModelPredictor:
                 'predicted_rank': int(ranks[i]),
                 'confidence': confidence,
                 'top_features': contributions[i],
-                'value_indicator': self._check_value_bet(probabilities[i], runner.get('ofr'))
+                'value_indicator': self._check_value_bet(probabilities[i], runner.get('ofr')),
+                'market_odds': runner.get('market_odds'),  # Market win odds
+                'market_prob': runner.get('market_prob'),  # Market implied probability
+                'runner_id': runner.get('runner_id')  # For fetching additional data later
             })
         
         return {
@@ -166,13 +239,13 @@ class ModelPredictor:
     def _get_race_data(self, race_id: str, upcoming_db_path: str) -> Optional[Dict]:
         """Fetch race and runner data from upcoming_races.db"""
         conn = sqlite3.connect(upcoming_db_path)
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = dict_factory  # Changed from sqlite3.Row to support .get()
         cursor = conn.cursor()
         
         # Get race info
         cursor.execute("""
             SELECT race_id, course, date, off_time as time, distance, distance_f, going, 
-                   surface, type, race_class, prize, age_band, pattern, region
+                   surface, type, race_class, race_name, prize, age_band, pattern, region
             FROM races
             WHERE race_id = ?
         """, (race_id,))
@@ -191,17 +264,20 @@ class ModelPredictor:
             except (ValueError, TypeError):
                 race_info['distance_f'] = None
         
-        # Get runners
+        # Get runners with market odds
         cursor.execute("""
             SELECT r.runner_id, r.number, r.draw, r.lbs, r.ofr, r.rpr, r.ts,
                    r.headgear, r.form,
                    h.horse_id, h.name as horse_name, h.age,
                    t.trainer_id, t.name as trainer_name,
-                   j.jockey_id, j.name as jockey_name
+                   j.jockey_id, j.name as jockey_name,
+                   mo.avg_decimal as market_odds,
+                   mo.implied_probability as market_prob
             FROM runners r
             LEFT JOIN horses h ON r.horse_id = h.horse_id
             LEFT JOIN trainers t ON r.trainer_id = t.trainer_id
             LEFT JOIN jockeys j ON r.jockey_id = j.jockey_id
+            LEFT JOIN runner_market_odds mo ON r.runner_id = mo.runner_id
             WHERE r.race_id = ?
             ORDER BY r.number
         """, (race_id,))
@@ -214,13 +290,146 @@ class ModelPredictor:
             'runners': runners
         }
     
-    def _generate_runner_features(self, race_info: Dict, runner: Dict) -> Optional[Dict]:
+    def _compute_field_odds_stats(self, runners: List[Dict]) -> Dict:
+        """
+        Compute field-level odds statistics for smart defaults
+        
+        When a runner doesn't have odds, use field average instead of 0/None
+        This is better than defaulting to 0 which breaks the model
+        
+        Args:
+            runners: List of runner dictionaries with runner_id
+            
+        Returns:
+            Dictionary with average odds statistics
+        """
+        if not self.feature_engineer or not self.feature_engineer.upcoming_conn:
+            return {'count': 0}
+        
+        # Query all odds for this race's runners
+        runner_ids = [r['runner_id'] for r in runners if r.get('runner_id')]
+        if not runner_ids:
+            return {'count': 0}
+        
+        placeholders = ','.join('?' * len(runner_ids))
+        conn = self.feature_engineer.upcoming_conn
+        cursor = conn.cursor()
+        
+        cursor.execute(f'''
+            SELECT avg_decimal, implied_probability, favorite_rank, bookmaker_count
+            FROM runner_market_odds
+            WHERE runner_id IN ({placeholders})
+        ''', runner_ids)
+        
+        rows = cursor.fetchall()
+        
+        if not rows:
+            return {'count': 0}
+        
+        # Compute averages
+        decimals = [r['avg_decimal'] for r in rows if r.get('avg_decimal')]
+        probs = [r['implied_probability'] for r in rows if r.get('implied_probability')]
+        ranks = [r['favorite_rank'] for r in rows if r.get('favorite_rank')]
+        bk_counts = [r['bookmaker_count'] for r in rows if r.get('bookmaker_count')]
+        
+        return {
+            'count': len(rows),
+            'avg_decimal': np.mean(decimals) if decimals else None,
+            'avg_implied_prob': np.mean(probs) if probs else None,
+            'avg_rank': np.mean(ranks) if ranks else 8,  # Default to middle rank
+            'avg_bookmaker_count': int(np.mean(bk_counts)) if bk_counts else 0,
+            'avg_spread': 2.0  # Reasonable default spread
+        }
+    
+    def _safe_convert(self, value) -> Optional[float]:
+        """Convert value to float, return None for '-' or invalid values"""
+        if value is None or value == '-' or value == '':
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+    
+    def _get_smart_default(self, field_stats: Dict, race_class: str, feature_name: str) -> float:
+        """
+        Get smart default for missing feature value
+        
+        Priority:
+        1. Field median (if available and enough samples)
+        2. Field average (if available)
+        3. Race class default
+        4. Global default
+        
+        Args:
+            field_stats: Dictionary with field statistics
+            race_class: Race class string (e.g., "Class 3", "Group 1")
+            feature_name: 'rpr' or 'ts'
+            
+        Returns:
+            Smart default value
+        """
+        # Priority 1: Field median (if we have enough samples)
+        if feature_name == 'rpr':
+            if field_stats.get('median_rpr') is not None and field_stats.get('count_rpr', 0) >= 3:
+                return field_stats['median_rpr']
+            if field_stats.get('avg_rpr') is not None and field_stats.get('count_rpr', 0) >= 1:
+                return field_stats['avg_rpr']
+        elif feature_name == 'ts':
+            if field_stats.get('median_ts') is not None and field_stats.get('count_ts', 0) >= 3:
+                return field_stats['median_ts']
+            if field_stats.get('avg_ts') is not None and field_stats.get('count_ts', 0) >= 1:
+                return field_stats['avg_ts']
+        
+        # Priority 2: Race class defaults
+        class_defaults = {
+            'rpr': {
+                'Group 1': 115, 'Group 2': 115, 'Group 3': 110,
+                'Listed': 110,
+                'Class 1': 105, 'Class 2': 100, 'Class 3': 95,
+                'Class 4': 85, 'Class 5': 75, 'Class 6': 65, 'Class 7': 65
+            },
+            'ts': {
+                'Group 1': 90, 'Group 2': 90, 'Group 3': 85,
+                'Listed': 85,
+                'Class 1': 80, 'Class 2': 75, 'Class 3': 70,
+                'Class 4': 65, 'Class 5': 60, 'Class 6': 55, 'Class 7': 55
+            }
+        }
+        
+        if race_class:
+            # Try exact match
+            if race_class in class_defaults.get(feature_name, {}):
+                return class_defaults[feature_name][race_class]
+            # Try partial match (e.g., "Class 3" contains "Class 3")
+            for key in class_defaults.get(feature_name, {}).keys():
+                if key in race_class or race_class in key:
+                    return class_defaults[feature_name][key]
+        
+        # Priority 3: Global defaults
+        return 90 if feature_name == 'rpr' else 70
+    
+    def _generate_runner_features(self, race_info: Dict, runner: Dict, field_stats: Dict = None, field_odds_avg: Dict = None) -> Optional[Dict]:
         """Generate ML features for a runner using FeatureEngineer"""
         from datetime import datetime
+        
+        # Debug logging
+        runner_num = runner.get('number', '?')
+        horse_name = runner.get('horse_name', 'Unknown')
+        rpr_raw = runner.get('rpr')
+        ts_raw = runner.get('ts')
+        
+        print(f"     Runner {runner_num}: {horse_name}")
+        print(f"       Raw RPR: {rpr_raw}, Raw TS: {ts_raw}")
         
         # Use today's date to ensure we only use historical data
         race_date = datetime.now().strftime('%Y-%m-%d')
         race_id = race_info['race_id']
+        
+        # Initialize field_stats and field_odds_avg if not provided
+        if field_stats is None:
+            field_stats = {}
+        if field_odds_avg is None:
+            field_odds_avg = {'count': 0}
         
         try:
             # Encode categorical features (matching FeatureEngineer logic)
@@ -283,14 +492,23 @@ class ModelPredictor:
             
             # Build runner dict compatible with FeatureEngineer
             # Convert numeric fields to proper types (handle '-' placeholders)
-            def safe_convert(value):
-                """Convert value to float, return None for '-' or invalid values"""
-                if value is None or value == '-':
-                    return None
-                try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return None
+            # Apply SMART DEFAULTS for missing RPR/TS
+            
+            rpr = self._safe_convert(runner.get('rpr'))
+            ts = self._safe_convert(runner.get('ts'))
+            
+            # Apply smart defaults if RPR/TS is missing
+            race_class_str = race_info.get('race_class')
+            
+            if rpr is None:
+                rpr = self._get_smart_default(field_stats, race_class_str, 'rpr')
+                print(f"       ⚠️  Missing RPR - using smart default: {rpr:.1f}")
+            
+            if ts is None:
+                ts = self._get_smart_default(field_stats, race_class_str, 'ts')
+                print(f"       ⚠️  Missing TS - using smart default: {ts:.1f}")
+            
+            print(f"       Final RPR: {rpr:.1f}, Final TS: {ts:.1f}")
             
             runner_data = {
                 'runner_id': runner.get('runner_id', 0),
@@ -300,11 +518,11 @@ class ModelPredictor:
                 'number': runner.get('number'),
                 'draw': runner.get('draw'),
                 'age': runner.get('age'),
-                'lbs': safe_convert(runner.get('lbs')),
-                'weight_lbs_combined': safe_convert(runner.get('lbs')),  # FeatureEngineer looks for this key
-                'ofr': safe_convert(runner.get('ofr')),
-                'rpr': safe_convert(runner.get('rpr')),
-                'ts': safe_convert(runner.get('ts')),
+                'lbs': self._safe_convert(runner.get('lbs')),
+                'weight_lbs_combined': self._safe_convert(runner.get('lbs')),  # FeatureEngineer looks for this key
+                'ofr': self._safe_convert(runner.get('ofr')),
+                'rpr': rpr,  # Now with smart defaults
+                'ts': ts,    # Now with smart defaults
                 'headgear': runner.get('headgear'),
                 'form': runner.get('form')
             }
@@ -312,7 +530,7 @@ class ModelPredictor:
             # Generate features (this will compute all ML features)
             # result is None for upcoming races (no historical result yet)
             features = self.feature_engineer.compute_runner_features(
-                runner_data, race_context, result=None
+                runner_data, race_context, result=None, field_odds_avg=field_odds_avg
             )
             
             return features
@@ -367,7 +585,9 @@ class ModelPredictor:
     
     def _calculate_ranks(self, probabilities: np.ndarray) -> np.ndarray:
         """Calculate predicted ranks from probabilities (1 = highest prob)"""
-        return np.argsort(-probabilities) + 1
+        # argsort twice: first gets sorting indices, second gets ranks
+        # Example: probs=[0.05, 0.204, 0.115] -> ranks=[3, 1, 2]
+        return np.argsort(np.argsort(-probabilities)) + 1
     
     def _calculate_confidence(self, probabilities: np.ndarray) -> str:
         """

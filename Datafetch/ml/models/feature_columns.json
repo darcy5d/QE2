@@ -75,5 +75,19 @@
   "course_distance_draw_bias",
   "draw_position_normalized",
   "low_draw_advantage",
-  "high_draw_advantage"
+  "high_draw_advantage",
+  "odds_implied_prob",
+  "odds_is_favorite",
+  "odds_favorite_rank",
+  "odds_decimal",
+  "odds_bookmaker_count",
+  "odds_spread",
+  "odds_market_stability",
+  "horse_sex_encoded",
+  "horse_is_filly_mare",
+  "horse_is_gelding",
+  "trainer_14d_runs",
+  "trainer_14d_wins",
+  "trainer_14d_win_pct",
+  "trainer_is_hot"
 ]

@@ -107,3 +107,4 @@ class TrainingWorker(QThread):
             error_msg = f"Training error: {str(e)}\n\n{traceback.format_exc()}"
             self.training_error.emit(error_msg)
 
+

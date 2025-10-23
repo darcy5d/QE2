@@ -213,6 +213,23 @@ class UpcomingRacesFetcher(QThread):
             comment TEXT,
             spotlight TEXT,
             silk_url TEXT,
+            age INTEGER,
+            sex TEXT,
+            sex_code TEXT,
+            dob TEXT,
+            sire TEXT,
+            sire_id TEXT,
+            dam TEXT,
+            dam_id TEXT,
+            damsire TEXT,
+            damsire_id TEXT,
+            region TEXT,
+            breeder TEXT,
+            colour TEXT,
+            trainer_location TEXT,
+            trainer_14d_runs INTEGER,
+            trainer_14d_wins INTEGER,
+            trainer_14d_percent REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (race_id) REFERENCES races (race_id),
             FOREIGN KEY (horse_id) REFERENCES horses (horse_id),
@@ -222,7 +239,108 @@ class UpcomingRacesFetcher(QThread):
         )
         ''')
         
+        # Runner odds table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS runner_odds (
+            odds_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            runner_id INTEGER NOT NULL,
+            bookmaker TEXT NOT NULL,
+            fractional TEXT,
+            decimal REAL,
+            ew_places TEXT,
+            ew_denom TEXT,
+            updated TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (runner_id) REFERENCES runners (runner_id),
+            UNIQUE(runner_id, bookmaker)
+        )
+        ''')
+        
+        # Market odds summary
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS runner_market_odds (
+            market_odds_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            runner_id INTEGER NOT NULL UNIQUE,
+            avg_decimal REAL,
+            median_decimal REAL,
+            min_decimal REAL,
+            max_decimal REAL,
+            bookmaker_count INTEGER,
+            implied_probability REAL,
+            is_favorite INTEGER,
+            favorite_rank INTEGER,
+            updated_at TIMESTAMP,
+            FOREIGN KEY (runner_id) REFERENCES runners (runner_id)
+        )
+        ''')
+        
         self.conn.commit()
+    
+    def save_runner_odds(self, cursor, runner_id: int, odds_data: list):
+        """Save bookmaker odds for a runner"""
+        if not odds_data:
+            return
+        
+        import statistics
+        decimal_odds = []
+        
+        for odds in odds_data:
+            bookmaker = odds.get('bookmaker', '')
+            fractional = odds.get('fractional', '')
+            decimal_str = odds.get('decimal', '')
+            ew_places = odds.get('ew_places', '')
+            ew_denom = odds.get('ew_denom', '')
+            updated = odds.get('updated', '')
+            
+            try:
+                decimal_float = float(decimal_str) if decimal_str else None
+                if decimal_float:
+                    decimal_odds.append(decimal_float)
+            except (ValueError, TypeError):
+                decimal_float = None
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO runner_odds (
+                    runner_id, bookmaker, fractional, decimal,
+                    ew_places, ew_denom, updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (runner_id, bookmaker, fractional, decimal_float,
+                  ew_places, ew_denom, updated))
+        
+        # Calculate market aggregates
+        if decimal_odds:
+            cursor.execute('''
+                INSERT OR REPLACE INTO runner_market_odds (
+                    runner_id, avg_decimal, median_decimal, min_decimal,
+                    max_decimal, bookmaker_count, implied_probability,
+                    is_favorite, favorite_rank, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, CURRENT_TIMESTAMP)
+            ''', (
+                runner_id,
+                statistics.mean(decimal_odds),
+                statistics.median(decimal_odds),
+                min(decimal_odds),
+                max(decimal_odds),
+                len(decimal_odds),
+                1.0 / statistics.mean(decimal_odds)
+            ))
+    
+    def update_favorite_status(self, cursor, race_id: str):
+        """Update favorite rankings for all runners in a race"""
+        cursor.execute('''
+            WITH race_odds AS (
+                SELECT mo.runner_id, mo.avg_decimal,
+                       ROW_NUMBER() OVER (ORDER BY mo.avg_decimal ASC) as rank
+                FROM runner_market_odds mo
+                JOIN runners r ON mo.runner_id = r.runner_id
+                WHERE r.race_id = ?
+            )
+            UPDATE runner_market_odds
+            SET is_favorite = CASE WHEN race_odds.rank = 1 THEN 1 ELSE 0 END,
+                favorite_rank = race_odds.rank
+            FROM race_odds
+            WHERE runner_market_odds.runner_id = race_odds.runner_id
+        ''', (race_id,))
     
     def fetch_date(self, date: str) -> int:
         """Fetch and save races for specific date"""
@@ -296,7 +414,7 @@ class UpcomingRacesFetcher(QThread):
                 
                 races_count += 1
                 
-                # Insert runners (basic data only for upcoming races)
+                # Insert runners with all new fields
                 runners = racecard.get('runners', [])
                 for runner in runners:
                     # Insert horse if needed
@@ -332,24 +450,87 @@ class UpcomingRacesFetcher(QThread):
                             VALUES (?, ?)
                         ''', (owner_id, runner.get('owner')))
                     
+                    # Extract all new fields
+                    age = runner.get('age', '')
+                    sex = runner.get('sex', '')
+                    sex_code = runner.get('sex_code', '')
+                    dob = runner.get('dob', '')
+                    sire = runner.get('sire', '')
+                    sire_id = runner.get('sire_id', '')
+                    dam = runner.get('dam', '')
+                    dam_id = runner.get('dam_id', '')
+                    damsire = runner.get('damsire', '')
+                    damsire_id = runner.get('damsire_id', '')
+                    region = runner.get('region', '')
+                    breeder = runner.get('breeder', '')
+                    colour = runner.get('colour', '')
+                    trainer_location = runner.get('trainer_location', '')
+                    
+                    # Trainer 14 day stats
+                    trainer_14d = runner.get('trainer_14_days', {})
+                    trainer_14d_runs = trainer_14d.get('runs', '') if trainer_14d else ''
+                    trainer_14d_wins = trainer_14d.get('wins', '') if trainer_14d else ''
+                    trainer_14d_percent = trainer_14d.get('percent', '') if trainer_14d else ''
+                    
+                    # Convert to proper types
+                    try:
+                        age_int = int(age) if age else None
+                    except:
+                        age_int = None
+                    
+                    try:
+                        trainer_14d_runs_int = int(trainer_14d_runs) if trainer_14d_runs else None
+                        trainer_14d_wins_int = int(trainer_14d_wins) if trainer_14d_wins else None
+                        # Remove % symbol if present
+                        if isinstance(trainer_14d_percent, str):
+                            trainer_14d_percent_clean = trainer_14d_percent.replace('%', '').strip()
+                        else:
+                            trainer_14d_percent_clean = trainer_14d_percent
+                        trainer_14d_percent_float = float(trainer_14d_percent_clean) if trainer_14d_percent_clean else None
+                    except:
+                        trainer_14d_runs_int = None
+                        trainer_14d_wins_int = None
+                        trainer_14d_percent_float = None
+                    
                     # Only insert runner if we have a valid horse_id
-                    # Foreign keys can be NULL, but if provided they must exist
                     if horse_id:
                         cursor.execute('''
                             INSERT INTO runners (
                                 race_id, horse_id, trainer_id, jockey_id, owner_id,
-                                number, draw, lbs, ofr, rpr, ts, form, last_run
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                number, draw, lbs, ofr, rpr, ts, form, last_run,
+                                headgear, headgear_run, wind_surgery, wind_surgery_run,
+                                trainer_rtf, comment, spotlight, silk_url,
+                                age, sex, sex_code, dob, sire, sire_id, dam, dam_id,
+                                damsire, damsire_id, region, breeder, colour, trainer_location,
+                                trainer_14d_runs, trainer_14d_wins, trainer_14d_percent
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             race_id, 
-                            horse_id if horse_id else None,
+                            horse_id,
                             trainer_id if trainer_id else None,
                             jockey_id if jockey_id else None,
                             owner_id if owner_id else None,
                             runner.get('number'), runner.get('draw'), runner.get('lbs'),
                             runner.get('ofr'), runner.get('rpr'), runner.get('ts'),
-                            runner.get('form'), runner.get('last_run')
+                            runner.get('form'), runner.get('last_run'),
+                            runner.get('headgear'), runner.get('headgear_run'),
+                            runner.get('wind_surgery'), runner.get('wind_surgery_run'),
+                            runner.get('trainer_rtf'), runner.get('comment'),
+                            runner.get('spotlight'), runner.get('silk_url'),
+                            age_int, sex, sex_code, dob, sire, sire_id, dam, dam_id,
+                            damsire, damsire_id, region, breeder, colour, trainer_location,
+                            trainer_14d_runs_int, trainer_14d_wins_int, trainer_14d_percent_float
                         ))
+                        
+                        runner_id = cursor.lastrowid
+                        
+                        # Save odds data
+                        if 'odds' in runner and runner['odds']:
+                            self.save_runner_odds(cursor, runner_id, runner['odds'])
+                
+                # After all runners processed, update favorite rankings
+                self.update_favorite_status(cursor, race_id)
             
             self.conn.commit()
             print(f"Successfully saved {races_count} races for {date}")

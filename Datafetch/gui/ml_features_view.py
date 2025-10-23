@@ -78,7 +78,9 @@ class MLFeaturesView(QWidget):
         
         # Clear and show message
         for i in reversed(range(self.layout().count())):
-            self.layout().itemAt(i).widget().setVisible(False)
+            item = self.layout().itemAt(i)
+            if item and item.widget():
+                item.widget().setVisible(False)
         self.layout().addWidget(msg)
     
     def show_error_message(self, error: str):

@@ -128,6 +128,10 @@ class BaselineTrainer:
         y_train = train_df['max_position'] - train_df['target'] + 1
         y_test = test_df['max_position'] - test_df['target'] + 1
         
+        # Cap at 31 for XGBoost NDCG compatibility (required in some versions)
+        y_train = y_train.clip(upper=31)
+        y_test = y_test.clip(upper=31)
+        
         # Example: 10-horse race
         #   Position 1 (winner): 10 - 1 + 1 = 10 points (highest)
         #   Position 5: 10 - 5 + 1 = 6 points
@@ -203,6 +207,7 @@ class BaselineTrainer:
         params = {
             'objective': 'rank:pairwise',  # Pairwise ranking loss - learns which horse beats which
             'eval_metric': 'ndcg@3',       # Normalized Discounted Cumulative Gain for top 3
+            'ndcg_exp_gain': False,        # Use linear DCG for large fields (>31 runners)
             'max_depth': 8,                 # Deeper trees for complex race interactions
             'learning_rate': 0.03,          # Lower learning rate for ranking
             'n_estimators': 300,

@@ -19,6 +19,7 @@ class NavigationRibbon(QWidget):
     ml_features_clicked = Signal()
     ml_training_clicked = Signal()
     predictions_clicked = Signal()
+    in_the_money_clicked = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,6 +41,7 @@ class NavigationRibbon(QWidget):
         self.ml_features_btn = QPushButton("🔬 ML Features")
         self.ml_training_btn = QPushButton("🚀 Model Training")
         self.predictions_btn = QPushButton("🎯 Predictions")
+        self.in_the_money_btn = QPushButton("💰 In The Money")
         
         # Style buttons
         button_style = """
@@ -80,7 +82,7 @@ class NavigationRibbon(QWidget):
         
         for btn in [self.home_btn, self.dbupdate_btn, self.upcoming_btn, 
                     self.racecard_btn, self.exploration_btn, self.ml_features_btn,
-                    self.ml_training_btn, self.predictions_btn]:
+                    self.ml_training_btn, self.predictions_btn, self.in_the_money_btn]:
             btn.setStyleSheet(button_style)
             font = QFont()
             font.setPointSize(12)
@@ -95,6 +97,7 @@ class NavigationRibbon(QWidget):
         self.ml_features_btn.clicked.connect(self.on_ml_features_clicked)
         self.ml_training_btn.clicked.connect(self.on_ml_training_clicked)
         self.predictions_btn.clicked.connect(self.on_predictions_clicked)
+        self.in_the_money_btn.clicked.connect(self.on_in_the_money_clicked)
         
         # Add to layout
         layout.addWidget(self.home_btn)
@@ -105,6 +108,7 @@ class NavigationRibbon(QWidget):
         layout.addWidget(self.ml_features_btn)
         layout.addWidget(self.ml_training_btn)
         layout.addWidget(self.predictions_btn)
+        layout.addWidget(self.in_the_money_btn)
         layout.addStretch()
         
         self.setLayout(layout)
@@ -127,6 +131,7 @@ class NavigationRibbon(QWidget):
         self.ml_features_btn.setStyleSheet(self.button_style)
         self.ml_training_btn.setStyleSheet(self.button_style)
         self.predictions_btn.setStyleSheet(self.button_style)
+        self.in_the_money_btn.setStyleSheet(self.button_style)
         
         # Set active button style
         if view == 'home':
@@ -145,6 +150,8 @@ class NavigationRibbon(QWidget):
             self.ml_training_btn.setStyleSheet(self.active_style)
         elif view == 'predictions':
             self.predictions_btn.setStyleSheet(self.active_style)
+        elif view == 'in_the_money':
+            self.in_the_money_btn.setStyleSheet(self.active_style)
     
     def on_home_clicked(self):
         """Handle home button click"""
@@ -185,4 +192,9 @@ class NavigationRibbon(QWidget):
         """Handle predictions button click"""
         self.set_active('predictions')
         self.predictions_clicked.emit()
+    
+    def on_in_the_money_clicked(self):
+        """Handle in the money button click"""
+        self.set_active('in_the_money')
+        self.in_the_money_clicked.emit()
 

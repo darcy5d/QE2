@@ -353,3 +353,4 @@ def get_clickable_label_hover_style():
         font-size: {FONTS['body']}px;
     """
 
+

@@ -162,6 +162,75 @@ class DataFetchView(QWidget):
         option2_group.setLayout(option2_layout)
         layout.addWidget(option2_group)
         
+        # Option 3: Complete Rebuild (NEW)
+        option3_group = QGroupBox("OPTION 3: Complete Database Rebuild ⚠️")
+        option3_layout = QVBoxLayout()
+        option3_layout.setSpacing(15)
+        
+        # Warning message
+        warning = QLabel(
+            "⚠️ WARNING: This will backup and rebuild the ENTIRE database from scratch.\n\n"
+            "✓ Backs up current database first\n"
+            "✓ Re-fetches ALL data from API with proper odds aggregation\n"
+            "✓ Fetches results for completed races\n"
+            "✓ Regenerates ML features with full odds coverage\n\n"
+            "Time estimate: 8-10 hours\n"
+            "Result: 80%+ of data will have odds features (vs current 2.2%)"
+        )
+        warning.setStyleSheet(
+            "color: #856404; padding: 15px; background: #fff3cd; "
+            "border: 2px solid #ffc107; border-radius: 4px; font-size: 11px;"
+        )
+        warning.setWordWrap(True)
+        option3_layout.addWidget(warning)
+        
+        # Date range selection
+        date_range_layout = QHBoxLayout()
+        date_range_layout.addWidget(QLabel("Start Date:"))
+        self.rebuild_start_date = QDateEdit()
+        self.rebuild_start_date.setCalendarPopup(True)
+        self.rebuild_start_date.setDate(QDate(2023, 1, 23))
+        self.rebuild_start_date.setDisplayFormat("yyyy-MM-dd")
+        date_range_layout.addWidget(self.rebuild_start_date)
+        
+        date_range_layout.addWidget(QLabel("End Date:"))
+        self.rebuild_end_date = QDateEdit()
+        self.rebuild_end_date.setCalendarPopup(True)
+        self.rebuild_end_date.setDate(QDate.currentDate().addDays(-1))
+        self.rebuild_end_date.setDisplayFormat("yyyy-MM-dd")
+        date_range_layout.addWidget(self.rebuild_end_date)
+        date_range_layout.addStretch()
+        
+        option3_layout.addLayout(date_range_layout)
+        
+        # Rebuild button
+        self.rebuild_btn = QPushButton("🔄 REBUILD ENTIRE DATABASE")
+        self.rebuild_btn.setMinimumHeight(50)
+        self.rebuild_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #d9534f;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #c9302c;
+            }
+            QPushButton:pressed {
+                background-color: #ac2925;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.rebuild_btn.clicked.connect(self.confirm_and_rebuild)
+        option3_layout.addWidget(self.rebuild_btn)
+        
+        option3_group.setLayout(option3_layout)
+        layout.addWidget(option3_group)
+        
         # Progress section
         progress_group = QGroupBox("Progress")
         progress_layout = QVBoxLayout()
@@ -274,6 +343,165 @@ class DataFetchView(QWidget):
         
         if reply == QMessageBox.Yes:
             self.start_fetch(yesterday)
+    
+    def confirm_and_rebuild(self):
+        """Show confirmation dialog before rebuilding"""
+        if self.is_fetching:
+            QMessageBox.warning(self, "Operation in Progress", 
+                              "A data operation is already in progress.")
+            return
+        
+        # Get date range
+        start_date = self.rebuild_start_date.date().toString("yyyy-MM-dd")
+        end_date = self.rebuild_end_date.date().toString("yyyy-MM-dd")
+        
+        # Calculate estimated time
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        days = (end_dt - start_dt).days + 1
+        
+        backup_name = f"racing_pro_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        
+        # Show detailed confirmation
+        reply = QMessageBox.question(
+            self,
+            'Confirm Database Rebuild',
+            f'⚠️ Are you sure you want to rebuild the ENTIRE database?\n\n'
+            f'Date Range: {start_date} to {end_date} ({days:,} days)\n\n'
+            f'This will:\n'
+            f'  ✓ Backup your current database to:\n'
+            f'     {backup_name}\n'
+            f'  ✓ Delete and recreate the database\n'
+            f'  ✓ Re-fetch ~{days * 40:,} races from the API\n'
+            f'  ✓ Properly aggregate ALL odds data\n'
+            f'  ✓ Fetch results for completed races\n'
+            f'  ✓ Regenerate ML features\n\n'
+            f'Estimated time: 8-10 hours\n\n'
+            f'⚠️ Do NOT close the application during this process!',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.start_rebuild(start_date, end_date)
+    
+    def start_rebuild(self, start_date: str, end_date: str):
+        """Start the database rebuild process"""
+        print(f"\n[GUI] Starting rebuild: {start_date} to {end_date}")
+        
+        from .rebuild_database_worker import RebuildDatabaseWorker
+        
+        self.is_fetching = True
+        self.update_to_date_btn.setEnabled(False)
+        self.update_to_yesterday_btn.setEnabled(False)
+        self.rebuild_btn.setEnabled(False)
+        self.date_picker.setEnabled(False)
+        self.rebuild_start_date.setEnabled(False)
+        self.rebuild_end_date.setEnabled(False)
+        
+        self.progress_bar.setValue(0)
+        self.status_label.setText(f"Starting database rebuild...")
+        
+        self.fetch_started.emit()
+        
+        # Create rebuild worker
+        db_path = str(self.db.db_path)
+        print(f"[GUI] Database path: {db_path}")
+        print(f"[GUI] Creating RebuildDatabaseWorker...")
+        self.rebuild_worker = RebuildDatabaseWorker(start_date, end_date, db_path)
+        print(f"[GUI] Worker created successfully")
+        
+        # Connect signals
+        print(f"[GUI] Connecting signals...")
+        self.rebuild_worker.progress_update.connect(self.on_rebuild_progress_text)
+        self.rebuild_worker.phase_changed.connect(self.on_rebuild_phase_changed)
+        self.rebuild_worker.item_processed.connect(self.on_rebuild_item_processed)
+        self.rebuild_worker.rebuild_complete.connect(self.on_rebuild_complete)
+        self.rebuild_worker.rebuild_error.connect(self.on_rebuild_error)
+        print(f"[GUI] Signals connected")
+        
+        # Track phase for progress
+        self.current_phase_total = 0
+        
+        # Start rebuild
+        print(f"[GUI] Starting worker thread...")
+        self.rebuild_worker.start()
+        print(f"[GUI] Worker thread started, check terminal for progress updates\n")
+    
+    def on_rebuild_progress_text(self, message: str):
+        """Handle rebuild progress text messages"""
+        self.status_label.setText(message)
+    
+    def on_rebuild_phase_changed(self, phase_name: str, total_items: int):
+        """Handle rebuild phase change"""
+        self.current_phase_total = total_items
+        self.progress_bar.setValue(0)
+        self.status_label.setText(phase_name)
+    
+    def on_rebuild_item_processed(self, current_item: int):
+        """Handle rebuild item processed"""
+        if self.current_phase_total > 0:
+            percentage = int((current_item / self.current_phase_total) * 100)
+            self.progress_bar.setValue(percentage)
+    
+    def on_rebuild_complete(self, stats: dict):
+        """Handle rebuild completion"""
+        self.is_fetching = False
+        self.update_to_date_btn.setEnabled(True)
+        self.update_to_yesterday_btn.setEnabled(True)
+        self.rebuild_btn.setEnabled(True)
+        self.date_picker.setEnabled(True)
+        self.rebuild_start_date.setEnabled(True)
+        self.rebuild_end_date.setEnabled(True)
+        
+        self.progress_bar.setValue(100)
+        self.status_label.setText("Rebuild complete!")
+        
+        # Reconnect to database
+        self.db.conn.close()
+        import sqlite3
+        self.db.conn = sqlite3.connect(str(self.db.db_path))
+        self.db.conn.row_factory = sqlite3.Row
+        
+        # Reload stats
+        self.load_current_stats()
+        
+        # Show completion message
+        QMessageBox.information(
+            self,
+            "Rebuild Complete",
+            f"✓ Database rebuild completed successfully!\n\n"
+            f"Statistics:\n"
+            f"  • Races: {stats.get('races', 0):,}\n"
+            f"  • Runners: {stats.get('runners', 0):,}\n"
+            f"  • Results: {stats.get('results', 0):,}\n"
+            f"  • Odds records: {stats.get('odds', 0):,}\n"
+            f"  • ML features: {stats.get('features', 0):,}\n\n"
+            f"Backup saved to:\n{stats.get('backup_path', 'N/A')}"
+        )
+        
+        self.fetch_completed.emit()
+        self.refresh_all_tabs()
+    
+    def on_rebuild_error(self, error_message: str):
+        """Handle rebuild error"""
+        self.is_fetching = False
+        self.update_to_date_btn.setEnabled(True)
+        self.update_to_yesterday_btn.setEnabled(True)
+        self.rebuild_btn.setEnabled(True)
+        self.date_picker.setEnabled(True)
+        self.rebuild_start_date.setEnabled(True)
+        self.rebuild_end_date.setEnabled(True)
+        
+        self.status_label.setText(f"Rebuild failed: {error_message}")
+        
+        QMessageBox.critical(
+            self,
+            "Rebuild Error",
+            f"Database rebuild failed:\n\n{error_message}\n\n"
+            f"Your original database backup should still be available.\n"
+            f"Check the Datafetch folder for backup files."
+        )
     
     def start_fetch(self, end_date: str):
         """Start the data fetch process"""

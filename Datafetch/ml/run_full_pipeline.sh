@@ -110,3 +110,4 @@ echo "  2. View data in GUI: python racecard_gui.py"
 echo "  3. Start making predictions!"
 echo ""
 
+
