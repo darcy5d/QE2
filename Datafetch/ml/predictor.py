@@ -31,16 +31,24 @@ def dict_factory(cursor, row):
 class ModelPredictor:
     """Generate predictions for upcoming races using trained ML model"""
     
-    def __init__(self, model_path: str = None, racing_db_path: str = None):
+    def __init__(self, model_path: str = None, racing_db_path: str = None, race_type: str = 'Flat'):
         """
         Initialize predictor with trained model
         
         Args:
-            model_path: Path to trained model JSON file
+            model_path: Path to trained model JSON file (optional, auto-generates from race_type if not provided)
             racing_db_path: Path to racing_pro.db with historical data
+            race_type: Type of races to predict ('Flat', 'Hurdle', 'Chase')
         """
+        self.race_type = race_type
         self.model_dir = Path(__file__).parent / "models"
-        self.model_path = Path(model_path) if model_path else self.model_dir / "xgboost_baseline.json"
+        
+        # Auto-generate model path based on race type if not provided
+        if model_path:
+            self.model_path = Path(model_path)
+        else:
+            race_type_lower = race_type.lower()
+            self.model_path = self.model_dir / f"xgboost_{race_type_lower}.json"
         
         # Database paths
         if racing_db_path:
@@ -62,25 +70,38 @@ class ModelPredictor:
         """Load trained XGBoost model"""
         try:
             import xgboost as xgb
+            
+            if not self.model_path.exists():
+                raise FileNotFoundError(
+                    f"Model not found: {self.model_path}\n"
+                    f"Train a {self.race_type} model first using: "
+                    f"python train_baseline.py --race-type {self.race_type}"
+                )
+            
             self.model = xgb.Booster()
             self.model.load_model(str(self.model_path))
-            print(f"✓ Loaded model from {self.model_path}")
+            print(f"✓ Loaded {self.race_type} racing model from {self.model_path.name}")
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {e}")
     
     def _load_feature_metadata(self):
-        """Load feature columns and importance scores"""
-        # Load feature columns
-        feature_cols_path = self.model_dir / "feature_columns.json"
+        """Load feature columns and importance scores for specific race type"""
+        race_type_lower = self.race_type.lower()
+        
+        # Load race-type-specific feature columns
+        feature_cols_path = self.model_dir / f"feature_columns_{race_type_lower}.json"
         if feature_cols_path.exists():
             with open(feature_cols_path, 'r') as f:
                 self.feature_columns = json.load(f)
-            print(f"✓ Loaded {len(self.feature_columns)} feature columns")
+            print(f"✓ Loaded {len(self.feature_columns)} feature columns for {self.race_type} racing")
         else:
-            raise FileNotFoundError(f"Feature columns file not found: {feature_cols_path}")
+            raise FileNotFoundError(
+                f"Feature columns file not found: {feature_cols_path}\n"
+                f"Train a {self.race_type} model first."
+            )
         
-        # Load feature importance
-        importance_path = self.model_dir / "feature_importance.csv"
+        # Load race-type-specific feature importance
+        importance_path = self.model_dir / f"feature_importance_{race_type_lower}.csv"
         if importance_path.exists():
             importance_df = pd.read_csv(importance_path)
             self.feature_importance = dict(zip(importance_df['feature'], importance_df['importance']))
@@ -119,6 +140,12 @@ class ModelPredictor:
         # Get race details and runners from upcoming_races.db
         race_data = self._get_race_data(race_id, upcoming_db_path)
         if not race_data:
+            return None
+        
+        # Validate race type matches model
+        race_type = race_data['race_info'].get('type', 'Unknown')
+        if race_type != self.race_type:
+            print(f"⚠️  Skipping {race_type} race (model trained for {self.race_type} only)")
             return None
         
         print(f"\n🏇 Processing race: {race_data['race_info'].get('course')} {race_data['race_info'].get('time')}")

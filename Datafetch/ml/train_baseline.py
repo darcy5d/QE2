@@ -24,8 +24,9 @@ class BaselineTrainer:
     """Train and evaluate baseline models"""
     
     # Feature columns to use (will be populated from ml_features table)
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, race_type: str = 'Flat'):
         self.db_path = db_path
+        self.race_type = race_type
         self.conn = None
         self.model = None
         self.feature_importance = None
@@ -78,24 +79,38 @@ class BaselineTrainer:
         if self.FEATURE_COLS is None:
             self.FEATURE_COLS = self.get_available_features()
         
+        # Show race type breakdown before filtering
+        logger.info("\n" + "="*60)
+        logger.info("Race counts by type in database:")
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT type, COUNT(*) as count FROM races GROUP BY type ORDER BY count DESC")
+        all_counts = cursor.fetchall()
+        for row in all_counts:
+            logger.info(f"  {row['type']}: {row['count']:,} races")
+        logger.info("="*60 + "\n")
+        
         # Load features and targets joined together
         # For ranking: use position instead of binary won (lower position = better)
+        # FILTER BY RACE TYPE (Flat only for focused training)
         query = """
             SELECT 
                 f.race_id,
                 f.runner_id,
                 r.date,
+                r.type,
                 t.position as target,
                 t.won,
                 {}
             FROM ml_features f
             JOIN ml_targets t ON f.race_id = t.race_id AND f.runner_id = t.runner_id
             JOIN races r ON f.race_id = r.race_id
+            WHERE r.type = ?
             ORDER BY r.date, f.race_id, t.position
         """.format(', '.join([f'f."{col}"' for col in self.FEATURE_COLS]))
         
-        df = pd.read_sql_query(query, self.conn)
+        df = pd.read_sql_query(query, self.conn, params=(self.race_type,))
         
+        logger.info(f"\n✅ Training on {self.race_type} races only")
         logger.info(f"Loaded {len(df):,} samples")
         logger.info(f"Date range: {df['date'].min()} to {df['date'].max()}")
         logger.info(f"Winners: {df['won'].sum():,} ({df['won'].mean()*100:.1f}%)")
@@ -374,21 +389,24 @@ class BaselineTrainer:
         return metrics
     
     def save_model(self, output_dir: Path):
-        """Save trained model and metadata"""
+        """Save trained model and metadata with race type suffix"""
         output_dir.mkdir(parents=True, exist_ok=True)
         
+        # Generate race-type-specific filenames
+        race_type_lower = self.race_type.lower()
+        
         # Save model
-        model_path = output_dir / 'xgboost_baseline.json'
+        model_path = output_dir / f'xgboost_{race_type_lower}.json'
         self.model.save_model(str(model_path))
-        logger.info(f"\n✓ Model saved to {model_path}")
+        logger.info(f"\n✓ {self.race_type} model saved to {model_path}")
         
         # Save feature importance
-        importance_path = output_dir / 'feature_importance.csv'
+        importance_path = output_dir / f'feature_importance_{race_type_lower}.csv'
         self.feature_importance.to_csv(importance_path, index=False)
         logger.info(f"✓ Feature importance saved to {importance_path}")
         
         # Save feature list
-        features_path = output_dir / 'feature_columns.json'
+        features_path = output_dir / f'feature_columns_{race_type_lower}.json'
         with open(features_path, 'w') as f:
             json.dump(self.FEATURE_COLS, f, indent=2)
         logger.info(f"✓ Feature columns saved to {features_path}")
@@ -445,6 +463,9 @@ def main():
                        help='Test set size (default: 0.2)')
     parser.add_argument('--output-dir', type=str, default='models',
                        help='Output directory for models')
+    parser.add_argument('--race-type', type=str, default='Flat',
+                       choices=['Flat', 'Hurdle', 'Chase'],
+                       help='Race type to train on (default: Flat)')
     
     args = parser.parse_args()
     
@@ -456,7 +477,8 @@ def main():
     
     output_dir = Path(__file__).parent / args.output_dir
     
-    trainer = BaselineTrainer(db_path)
+    logger.info(f"Training model for {args.race_type} racing")
+    trainer = BaselineTrainer(db_path, race_type=args.race_type)
     
     try:
         model, metrics = trainer.run_full_pipeline(
