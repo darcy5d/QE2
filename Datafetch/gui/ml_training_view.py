@@ -105,6 +105,63 @@ class MLTrainingView(QWidget):
         self.model_combo.currentTextChanged.connect(self.on_model_changed)
         layout.addWidget(self.model_combo)
         
+        # Race Type Selector
+        race_type_label = QLabel("Race Type:")
+        race_type_label.setStyleSheet("color: white; font-weight: bold; margin-top: 15px;")
+        layout.addWidget(race_type_label)
+        
+        self.race_type_combo = QComboBox()
+        self.race_type_combo.addItems([
+            "🏇 Flat (Recommended)",
+            "🐴 Hurdle (Not Available)",
+            "🐴 Chase (Not Available)"
+        ])
+        self.race_type_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #3A3A3A;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 13px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3A3A3A;
+                color: white;
+                selection-background-color: #4A90E2;
+            }
+        """)
+        self.race_type_combo.setToolTip("Select which type of races to train on\nFlat: Shorter, faster races (draw important)\nHurdle/Chase: Jump racing (different dynamics)")
+        
+        # Disable non-Flat options for now
+        for i in range(1, self.race_type_combo.count()):
+            model_item = self.race_type_combo.model().item(i)
+            model_item.setEnabled(False)
+            model_item.setToolTip("Model not available - train Flat model first, then expand to Jump racing")
+        
+        self.race_type_combo.currentTextChanged.connect(self.update_model_output_name)
+        layout.addWidget(self.race_type_combo)
+        
+        # Model output filename display
+        output_name_label = QLabel("Model Output:")
+        output_name_label.setStyleSheet("color: #888; font-size: 11px; margin-top: 5px;")
+        layout.addWidget(output_name_label)
+        
+        self.model_output_label = QLabel("xgboost_flat.json")
+        self.model_output_label.setStyleSheet("""
+            color: #4A90E2;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 5px;
+            background-color: #1E1E1E;
+            border: 1px solid #555;
+            border-radius: 3px;
+        """)
+        layout.addWidget(self.model_output_label)
+        
         # Model explanation
         explanation_label = QLabel("Model Details:")
         explanation_label.setStyleSheet("color: white; font-weight: bold; margin-top: 10px;")
@@ -468,6 +525,14 @@ rather than just winning. Higher success rate but lower odds.</p>
         self.test_size_value.setText(f"{value}%")
     
     @Slot()
+    def update_model_output_name(self):
+        """Update model output filename based on race type"""
+        race_type_text = self.race_type_combo.currentText()
+        race_type = race_type_text.split()[1] if len(race_type_text.split()) > 1 else "Flat"  # Extract "Flat" from emoji text
+        race_type_lower = race_type.lower()
+        self.model_output_label.setText(f"xgboost_{race_type_lower}.json")
+    
+    @Slot()
     def start_training(self):
         """Start model training in background"""
         model_type = self.model_combo.currentText()
@@ -485,7 +550,10 @@ rather than just winning. Higher success rate but lower odds.</p>
         # Check if we should regenerate features first
         if self.auto_regen_checkbox.isChecked():
             self.append_log("Auto-regenerate enabled: Rebuilding features first...\n")
-            self.pending_training_config = {'model_type': model_type, 'config': config}
+            # Extract race type from combo box
+            race_type_text = self.race_type_combo.currentText()
+            race_type = race_type_text.split()[1] if len(race_type_text.split()) > 1 else "Flat"
+            self.pending_training_config = {'model_type': model_type, 'config': config, 'race_type': race_type}
             self.start_feature_regeneration()
             return
         
@@ -495,10 +563,15 @@ rather than just winning. Higher success rate but lower odds.</p>
         self.train_button.setText("Training...")
         
         # Start worker thread
+        # Extract race type from combo box
+        race_type_text = self.race_type_combo.currentText()
+        race_type = race_type_text.split()[1] if len(race_type_text.split()) > 1 else "Flat"
+        
         self.current_worker = TrainingWorker(
             model_type=model_type,
             config=config,
-            db_path=self.db.db_path
+            db_path=self.db.db_path,
+            race_type=race_type
         )
         
         self.current_worker.progress_update.connect(self.append_log)
@@ -549,7 +622,8 @@ rather than just winning. Higher success rate but lower odds.</p>
             self.current_worker = TrainingWorker(
                 model_type=config['model_type'],
                 config=config['config'],
-                db_path=self.db.db_path
+                db_path=self.db.db_path,
+                race_type=config.get('race_type', 'Flat')
             )
             
             self.current_worker.progress_update.connect(self.append_log)

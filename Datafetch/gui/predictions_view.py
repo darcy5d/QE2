@@ -173,6 +173,34 @@ class PredictionsView(QWidget):
         self.export_btn.setEnabled(False)
         header_layout.addWidget(self.export_btn)
         
+        header_layout.addSpacing(20)
+        
+        # Race Type Filter
+        type_label = QLabel("Show:")
+        type_label.setStyleSheet(f"color: {COLORS['text_primary']}; font-size: 12px;")
+        header_layout.addWidget(type_label)
+        
+        self.race_type_filter = QComboBox()
+        self.race_type_filter.addItems([
+            "🏇 Flat Races Only",
+            "All Race Types (Experimental)"
+        ])
+        self.race_type_filter.setCurrentIndex(0)  # Default to Flat only
+        self.race_type_filter.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['bg_secondary']};
+                border: 1px solid {COLORS['border_medium']};
+                border-radius: 4px;
+                padding: 5px 10px;
+                color: {COLORS['text_primary']};
+                min-width: 180px;
+            }}
+        """)
+        self.race_type_filter.setToolTip("Filter predictions by race type\nFlat: Shorter, faster races with draw importance\nAll Types: Includes Hurdle/Chase (less reliable)")
+        header_layout.addWidget(self.race_type_filter)
+        
+        header_layout.addSpacing(20)
+        
         # Generate predictions button
         self.generate_btn = QPushButton("🚀 Generate Predictions")
         self.generate_btn.setStyleSheet(f"""
@@ -515,14 +543,35 @@ class PredictionsView(QWidget):
         self.prediction_worker.start()
     
     def get_upcoming_race_ids(self):
-        """Get list of race IDs from upcoming_races.db"""
+        """Get list of race IDs from upcoming_races.db, filtered by race type"""
         try:
             conn = sqlite3.connect(str(self.upcoming_db_path))
             cursor = conn.cursor()
-            cursor.execute("SELECT race_id FROM races ORDER BY off_time")
-            race_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Determine race type filter
+            race_type_text = self.race_type_filter.currentText()
+            
+            if "Flat Races Only" in race_type_text:
+                # Show race type breakdown
+                cursor.execute("SELECT type, COUNT(*) FROM races GROUP BY type")
+                type_counts = cursor.fetchall()
+                print(f"\n📊 Upcoming races by type:")
+                for row in type_counts:
+                    print(f"   {row[0]}: {row[1]} races")
+                
+                # Filter to Flat only
+                cursor.execute("SELECT race_id, type FROM races WHERE type = 'Flat' ORDER BY off_time")
+                results = cursor.fetchall()
+                race_ids = [row[0] for row in results]
+                print(f"✅ Filtering to Flat races only: {len(race_ids)} races")
+            else:
+                # All race types
+                cursor.execute("SELECT race_id, type FROM races ORDER BY off_time")
+                results = cursor.fetchall()
+                race_ids = [row[0] for row in results]
+                print(f"⚠️  Loading ALL race types: {len(race_ids)} races (predictions may be less reliable for Jump racing)")
+            
             conn.close()
-            print(f"📊 Found {len(race_ids)} upcoming races to predict")
             return race_ids
         except Exception as e:
             print(f"Error getting race IDs: {e}")
@@ -891,9 +940,16 @@ class PredictionsView(QWidget):
         going = race_info.get('going', '')
         prize = race_info.get('prize', '')
         
-        # Format: COURSE (SURFACE) - TIME
+        # Add race type emoji
+        race_type_emoji = '🏇' if race_type == 'Flat' else '🐴'
+        race_type_display = f"{race_type_emoji} {race_type}" if race_type else ""
+        
+        # Format: COURSE (SURFACE) RACE_TYPE - TIME
         # Race Name - Distance - Class/Pattern - Going - Prize
-        header_line1 = f"{course} ({surface if surface else 'Turf'}) - {time}"
+        surface_type_str = f"{surface if surface else 'Turf'}"
+        if race_type_display:
+            surface_type_str += f" {race_type_display}"
+        header_line1 = f"{course} ({surface_type_str}) - {time}"
         header_line2_parts = []
         
         if race_name:
