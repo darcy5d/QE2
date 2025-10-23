@@ -103,6 +103,17 @@ class MLFeaturesView(QWidget):
         title.setStyleSheet("color: white;")
         header_layout.addWidget(title)
         
+        # Race type info label
+        race_type_info = QLabel("📊 All Race Types | 🏇 Flat model recommended")
+        race_type_info.setStyleSheet("""
+            color: #888;
+            font-size: 11px;
+            padding: 5px 10px;
+            margin-left: 15px;
+        """)
+        race_type_info.setToolTip("Features exist for all race types (Flat/Hurdle/Chase)\nFor best results, train separate models per race type")
+        header_layout.addWidget(race_type_info)
+        
         header_layout.addStretch()
         
         # Refresh button

@@ -289,10 +289,24 @@ class DataFetchView(QWidget):
             cursor.execute("SELECT COUNT(*) FROM races")
             total_races = cursor.fetchone()[0]
             
+            # Get race type breakdown
+            cursor.execute("SELECT type, COUNT(*) FROM races GROUP BY type ORDER BY COUNT(*) DESC")
+            type_breakdown = cursor.fetchall()
+            
+            # Format race type breakdown
+            type_text = ""
+            if type_breakdown:
+                type_text = "\n• Race Types:"
+                for race_type, count in type_breakdown:
+                    type_emoji = '🏇' if race_type == 'Flat' else '🐴'
+                    percentage = (count / total_races * 100) if total_races > 0 else 0
+                    type_text += f"\n  {type_emoji} {race_type}: {count:,} ({percentage:.1f}%)"
+            
             stats_text = (
                 f"• Start: {min_date}\n"
                 f"• End: {max_date}\n"
                 f"• Total Races: {total_races:,}"
+                f"{type_text}"
             )
         else:
             stats_text = "No data in database"
