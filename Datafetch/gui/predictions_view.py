@@ -5,7 +5,7 @@ Predictions View - Display ML predictions for upcoming races with hierarchical n
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                 QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
                                 QHeaderView, QGroupBox, QScrollArea, QProgressBar,
-                                QMessageBox, QFileDialog, QFrame, QLayout)
+                                QMessageBox, QFileDialog, QFrame, QLayout, QComboBox)
 from PySide6.QtCore import Qt, Slot, QRect, QSize
 from PySide6.QtGui import QFont, QColor
 from pathlib import Path
