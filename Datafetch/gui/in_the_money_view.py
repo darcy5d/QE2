@@ -30,6 +30,7 @@ class InTheMoneyView(QWidget):
         self.kelly_fraction = 0.5
         self.min_edge = 0.05
         self.market_confidence = 0.65  # Default to 65% market blend (conservative)
+        self.selected_date = None  # None = All Dates
         
         # Bet type filters
         self.show_win = True
@@ -283,6 +284,28 @@ class InTheMoneyView(QWidget):
         
         row2.addSpacing(20)
         
+        # Date Filter
+        date_label = QLabel("Date:")
+        date_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
+        date_label.setToolTip("Filter races by date\nSelect a specific date for focused betting\nStakes will be calculated for that date only")
+        row2.addWidget(date_label)
+        
+        self.date_combo = QComboBox()
+        self.date_combo.addItem("All Dates")
+        self.date_combo.currentIndexChanged.connect(self.on_date_changed)
+        self.date_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['bg_secondary']};
+                border: 1px solid {COLORS['border_medium']};
+                border-radius: 4px;
+                padding: 5px;
+                color: {COLORS['text_primary']};
+            }}
+        """)
+        row2.addWidget(self.date_combo)
+        
+        row2.addSpacing(20)
+        
         # Race Type Filter
         race_type_label = QLabel("Race Type:")
         race_type_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
@@ -457,9 +480,10 @@ class InTheMoneyView(QWidget):
         # Update warning
         self.update_kelly_warning()
         
-        # ✅ FIXED: Regenerate recommendations entirely (not just redisplay)
+        # ✅ IMPROVEMENT: Don't auto-regenerate - let user click "Find Value Bets"
+        # Show hint that settings have changed if recommendations exist
         if self.all_recommendations:
-            self.generate_recommendations()  # Recalculate everything!
+            self.summary_label.setText("⚠️ Settings changed - click 'Find Value Bets' to recalculate with new parameters")
     
     @Slot()
     def on_filter_changed(self):
@@ -474,10 +498,72 @@ class InTheMoneyView(QWidget):
         if self.all_recommendations:
             self.display_filtered_recommendations()
     
+    @Slot()
+    def on_date_changed(self):
+        """Handle date filter change"""
+        date_text = self.date_combo.currentText()
+        if date_text == "All Dates":
+            self.selected_date = None
+        else:
+            # Extract date from "2025-10-24 (12 races)" format
+            self.selected_date = date_text.split(' ')[0]
+        
+        # Show hint to regenerate if recommendations exist
+        if self.all_recommendations:
+            self.summary_label.setText("⚠️ Date filter changed - click 'Find Value Bets' to recalculate")
+    
     def update_kelly_warning(self):
         """Update Kelly fraction warning message"""
         description = BettingCalculator.get_kelly_description(self.kelly_fraction)
         self.kelly_warning.setText(description)
+    
+    def load_available_dates(self):
+        """Load available dates from upcoming_races.db into date dropdown"""
+        if not self.upcoming_db_path.exists():
+            return
+        
+        try:
+            conn = sqlite3.connect(str(self.upcoming_db_path))
+            cursor = conn.cursor()
+            
+            # Get dates with race counts
+            cursor.execute("""
+                SELECT date, COUNT(*) as race_count
+                FROM races
+                GROUP BY date
+                ORDER BY date
+            """)
+            dates = cursor.fetchall()
+            conn.close()
+            
+            # Clear existing items (except "All Dates")
+            self.date_combo.blockSignals(True)  # Prevent triggering on_date_changed
+            self.date_combo.clear()
+            
+            # Add "All Dates" with total count
+            total_races = sum(count for _, count in dates)
+            self.date_combo.addItem(f"All Dates ({total_races} races)")
+            
+            # Add individual dates
+            for date, count in dates:
+                self.date_combo.addItem(f"{date} ({count} races)")
+            
+            self.date_combo.blockSignals(False)
+            
+            # Reset to "All Dates" if current selection is invalid
+            if self.selected_date:
+                # Try to find and select the current date
+                for i in range(self.date_combo.count()):
+                    if self.selected_date in self.date_combo.itemText(i):
+                        self.date_combo.setCurrentIndex(i)
+                        break
+                else:
+                    # Date not found, reset to All Dates
+                    self.date_combo.setCurrentIndex(0)
+                    self.selected_date = None
+            
+        except Exception as e:
+            print(f"Error loading dates: {e}")
     
     @Slot()
     def generate_recommendations(self):
@@ -492,6 +578,9 @@ class InTheMoneyView(QWidget):
             return
         
         try:
+            # Load available dates into dropdown
+            self.load_available_dates()
+            
             # Get all predictions from upcoming_races.db
             conn = sqlite3.connect(str(self.upcoming_db_path))
             conn.row_factory = sqlite3.Row
@@ -593,22 +682,38 @@ class InTheMoneyView(QWidget):
             for row in type_counts:
                 print(f"   {row[0]}: {row[1]} races")
             
-            # Apply filter
-            if race_type:
+            # Apply filters (race type AND date)
+            if race_type and self.selected_date:
+                cursor.execute("""
+                    SELECT race_id, course, date, off_time, type 
+                    FROM races 
+                    WHERE type = ? AND date = ?
+                    ORDER BY off_time
+                """, (race_type, self.selected_date))
+                print(f"✅ Filtering to {race_type} races on {self.selected_date}")
+            elif race_type:
                 cursor.execute("""
                     SELECT race_id, course, date, off_time, type 
                     FROM races 
                     WHERE type = ?
                     ORDER BY off_time
                 """, (race_type,))
-                print(f"✅ Filtering to {race_type} races only")
+                print(f"✅ Filtering to {race_type} races only (all dates)")
+            elif self.selected_date:
+                cursor.execute("""
+                    SELECT race_id, course, date, off_time, type 
+                    FROM races 
+                    WHERE date = ?
+                    ORDER BY off_time
+                """, (self.selected_date,))
+                print(f"✅ Filtering to races on {self.selected_date} (all types)")
             else:
                 cursor.execute("""
                     SELECT race_id, course, date, off_time, type 
                     FROM races 
                     ORDER BY off_time
                 """)
-                print(f"⚠️  Loading ALL race types (may have unreliable predictions)")
+                print(f"⚠️  Loading ALL race types and dates (may have unreliable predictions)")
             
             races = cursor.fetchall()
             conn.close()
