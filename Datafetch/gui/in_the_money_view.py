@@ -4,7 +4,8 @@ In The Money View - Value betting recommendations using Kelly Criterion
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                                 QLineEdit, QComboBox, QCheckBox, QGroupBox, QScrollArea,
-                                QFrame, QMessageBox, QFileDialog, QTreeWidget, QTreeWidgetItem)
+                                QFrame, QMessageBox, QFileDialog, QTreeWidget, QTreeWidgetItem,
+                                QListWidget, QListWidgetItem, QAbstractItemView)
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QColor, QDoubleValidator
 from pathlib import Path
@@ -30,7 +31,7 @@ class InTheMoneyView(QWidget):
         self.kelly_fraction = 0.5
         self.min_edge = 0.05
         self.market_confidence = 0.65  # Default to 65% market blend (conservative)
-        self.selected_date = None  # None = All Dates
+        self.selected_dates = []  # Empty list = All Dates
         
         # Bet type filters
         self.show_win = True
@@ -282,31 +283,69 @@ class InTheMoneyView(QWidget):
         """)
         row2.addWidget(self.market_confidence_combo)
         
-        row2.addSpacing(20)
+        row2.addStretch()
+        layout.addLayout(row2)
         
-        # Date Filter
-        date_label = QLabel("Date:")
-        date_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
-        date_label.setToolTip("Filter races by date\nSelect a specific date for focused betting\nStakes will be calculated for that date only")
-        row2.addWidget(date_label)
+        # Row 3: Date Filter (multi-select list)
+        row3 = QVBoxLayout()
+        row3.setSpacing(5)
         
-        self.date_combo = QComboBox()
-        self.date_combo.addItem("All Dates")
-        self.date_combo.currentIndexChanged.connect(self.on_date_changed)
-        self.date_combo.setStyleSheet(f"""
-            QComboBox {{
+        date_header = QHBoxLayout()
+        date_label = QLabel("📅 Select Dates (Ctrl/Cmd+Click for multiple):")
+        date_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']}; font-size: 11px;")
+        date_header.addWidget(date_label)
+        
+        # Clear selection button
+        self.clear_dates_btn = QPushButton("Clear Selection (All Dates)")
+        self.clear_dates_btn.setMaximumWidth(180)
+        self.clear_dates_btn.clicked.connect(self.clear_date_selection)
+        self.clear_dates_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_tertiary']};
+                border: 1px solid {COLORS['border_medium']};
+                border-radius: 3px;
+                padding: 3px 8px;
+                color: {COLORS['text_secondary']};
+                font-size: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['bg_hover']};
+            }}
+        """)
+        date_header.addWidget(self.clear_dates_btn)
+        date_header.addStretch()
+        row3.addLayout(date_header)
+        
+        # Multi-select date list
+        self.date_list = QListWidget()
+        self.date_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.date_list.setMaximumHeight(80)
+        self.date_list.itemSelectionChanged.connect(self.on_date_selection_changed)
+        self.date_list.setStyleSheet(f"""
+            QListWidget {{
                 background-color: {COLORS['bg_secondary']};
                 border: 1px solid {COLORS['border_medium']};
                 border-radius: 4px;
-                padding: 5px;
+                padding: 2px;
                 color: {COLORS['text_primary']};
+                font-size: 11px;
+            }}
+            QListWidget::item {{
+                padding: 3px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {COLORS['accent_blue']};
+                color: white;
+            }}
+            QListWidget::item:hover {{
+                background-color: {COLORS['bg_hover']};
             }}
         """)
-        row2.addWidget(self.date_combo)
+        row3.addWidget(self.date_list)
+        layout.addLayout(row3)
         
+        # Race Type Filter  
         row2.addSpacing(20)
-        
-        # Race Type Filter
         race_type_label = QLabel("Race Type:")
         race_type_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
         race_type_label.setToolTip("Select which race types to bet on\nFlat: Fastest, shortest races with draw importance\nHurdle/Chase: Jump racing (models not available yet)")
@@ -370,9 +409,6 @@ class InTheMoneyView(QWidget):
         self.first_four_check.setChecked(True)
         self.first_four_check.stateChanged.connect(self.on_filter_changed)
         row2.addWidget(self.first_four_check)
-        
-        row2.addStretch()
-        layout.addLayout(row2)
         
         panel.setLayout(layout)
         return panel
@@ -499,18 +535,32 @@ class InTheMoneyView(QWidget):
             self.display_filtered_recommendations()
     
     @Slot()
-    def on_date_changed(self):
-        """Handle date filter change"""
-        date_text = self.date_combo.currentText()
-        if date_text == "All Dates":
-            self.selected_date = None
-        else:
+    def on_date_selection_changed(self):
+        """Handle date selection change"""
+        selected_items = self.date_list.selectedItems()
+        self.selected_dates = []
+        
+        for item in selected_items:
             # Extract date from "2025-10-24 (12 races)" format
-            self.selected_date = date_text.split(' ')[0]
+            date_text = item.text()
+            date = date_text.split(' ')[0]
+            self.selected_dates.append(date)
         
         # Show hint to regenerate if recommendations exist
         if self.all_recommendations:
-            self.summary_label.setText("⚠️ Date filter changed - click 'Find Value Bets' to recalculate")
+            if self.selected_dates:
+                date_str = ", ".join(self.selected_dates)
+                self.summary_label.setText(f"⚠️ Date filter changed ({len(self.selected_dates)} dates: {date_str}) - click 'Find Value Bets' to recalculate")
+            else:
+                self.summary_label.setText("⚠️ Date filter changed (All Dates) - click 'Find Value Bets' to recalculate")
+    
+    @Slot()
+    def clear_date_selection(self):
+        """Clear all date selections (show all dates)"""
+        self.date_list.clearSelection()
+        self.selected_dates = []
+        if self.all_recommendations:
+            self.summary_label.setText("⚠️ Showing all dates - click 'Find Value Bets' to recalculate")
     
     def update_kelly_warning(self):
         """Update Kelly fraction warning message"""
@@ -518,7 +568,7 @@ class InTheMoneyView(QWidget):
         self.kelly_warning.setText(description)
     
     def load_available_dates(self):
-        """Load available dates from upcoming_races.db into date dropdown"""
+        """Load available dates from upcoming_races.db into date list"""
         if not self.upcoming_db_path.exists():
             return
         
@@ -536,31 +586,29 @@ class InTheMoneyView(QWidget):
             dates = cursor.fetchall()
             conn.close()
             
-            # Clear existing items (except "All Dates")
-            self.date_combo.blockSignals(True)  # Prevent triggering on_date_changed
-            self.date_combo.clear()
-            
-            # Add "All Dates" with total count
-            total_races = sum(count for _, count in dates)
-            self.date_combo.addItem(f"All Dates ({total_races} races)")
+            # Clear existing items
+            self.date_list.blockSignals(True)  # Prevent triggering on_date_selection_changed
+            self.date_list.clear()
             
             # Add individual dates
             for date, count in dates:
-                self.date_combo.addItem(f"{date} ({count} races)")
+                item = QListWidgetItem(f"{date} ({count} races)")
+                self.date_list.addItem(item)
+                
+                # Restore selection if this date was previously selected
+                if date in self.selected_dates:
+                    item.setSelected(True)
             
-            self.date_combo.blockSignals(False)
+            self.date_list.blockSignals(False)
             
-            # Reset to "All Dates" if current selection is invalid
-            if self.selected_date:
-                # Try to find and select the current date
-                for i in range(self.date_combo.count()):
-                    if self.selected_date in self.date_combo.itemText(i):
-                        self.date_combo.setCurrentIndex(i)
-                        break
-                else:
-                    # Date not found, reset to All Dates
-                    self.date_combo.setCurrentIndex(0)
-                    self.selected_date = None
+            # Update total race count display
+            total_races = sum(count for _, count in dates)
+            if not self.selected_dates:
+                self.clear_dates_btn.setText(f"Clear Selection (All {total_races} races)")
+            else:
+                # Calculate selected race count
+                selected_count = sum(count for date, count in dates if date in self.selected_dates)
+                self.clear_dates_btn.setText(f"Clear Selection ({selected_count}/{total_races} races)")
             
         except Exception as e:
             print(f"Error loading dates: {e}")
@@ -682,15 +730,17 @@ class InTheMoneyView(QWidget):
             for row in type_counts:
                 print(f"   {row[0]}: {row[1]} races")
             
-            # Apply filters (race type AND date)
-            if race_type and self.selected_date:
-                cursor.execute("""
+            # Apply filters (race type AND dates)
+            if race_type and self.selected_dates:
+                # Multiple dates selected
+                placeholders = ','.join('?' * len(self.selected_dates))
+                cursor.execute(f"""
                     SELECT race_id, course, date, off_time, type 
                     FROM races 
-                    WHERE type = ? AND date = ?
+                    WHERE type = ? AND date IN ({placeholders})
                     ORDER BY off_time
-                """, (race_type, self.selected_date))
-                print(f"✅ Filtering to {race_type} races on {self.selected_date}")
+                """, (race_type, *self.selected_dates))
+                print(f"✅ Filtering to {race_type} races on {len(self.selected_dates)} dates: {', '.join(self.selected_dates)}")
             elif race_type:
                 cursor.execute("""
                     SELECT race_id, course, date, off_time, type 
@@ -699,14 +749,16 @@ class InTheMoneyView(QWidget):
                     ORDER BY off_time
                 """, (race_type,))
                 print(f"✅ Filtering to {race_type} races only (all dates)")
-            elif self.selected_date:
-                cursor.execute("""
+            elif self.selected_dates:
+                # Multiple dates selected, all race types
+                placeholders = ','.join('?' * len(self.selected_dates))
+                cursor.execute(f"""
                     SELECT race_id, course, date, off_time, type 
                     FROM races 
-                    WHERE date = ?
+                    WHERE date IN ({placeholders})
                     ORDER BY off_time
-                """, (self.selected_date,))
-                print(f"✅ Filtering to races on {self.selected_date} (all types)")
+                """, tuple(self.selected_dates))
+                print(f"✅ Filtering to races on {len(self.selected_dates)} dates: {', '.join(self.selected_dates)} (all types)")
             else:
                 cursor.execute("""
                     SELECT race_id, course, date, off_time, type 
