@@ -934,9 +934,11 @@ class FeatureEngineer:
         # === NEW DISCRIMINATING FEATURES (18 features) ===
         
         # MARKET POSITION (1 feature) - Categorical odds anchor
-        market_position_tier = calculate_market_position(
-            field_odds_avg  # Use average field odds as proxy for this horse
-        )
+        # Extract the actual average odds value from the dict
+        market_odds_value = None
+        if isinstance(field_odds_avg, dict):
+            market_odds_value = field_odds_avg.get('avg')
+        market_position_tier = calculate_market_position(market_odds_value)
         features['market_position_tier'] = market_position_tier
         
         # CLASS MOVEMENT FEATURES (4 features)
