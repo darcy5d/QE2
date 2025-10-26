@@ -1121,6 +1121,17 @@ class FeatureEngineer:
             features['top_3_rpr_avg'] = top_3_rpr_avg
             features['pace_pressure_likely'] = pace_pressure
         
+        # === BTN FIELD-LEVEL STATISTICS (NEW) ===
+        # Calculate field-level BTN comparisons
+        from .btn_features import calculate_field_btn_stats
+        btn_relative = calculate_field_btn_stats(all_runner_features)
+        
+        # Update each horse's features with relative BTN metrics
+        for features in all_runner_features:
+            horse_id = features.get('horse_id')
+            if horse_id and horse_id in btn_relative:
+                features.update(btn_relative[horse_id])
+        
         # === RANKINGS ===
         # RPR rank
         if ratings:
@@ -1183,16 +1194,9 @@ class FeatureEngineer:
             features['jockey_rating'] = jockey_wr - avg_jockey_wr
             features['trainer_rating'] = trainer_wr - avg_trainer_wr
         
-        # === MARKET RANKS (based on OFR as proxy) ===
-        sorted_by_rating = sorted(
-            all_runner_features, 
-            key=lambda x: x['ofr'] if x['ofr'] is not None else -999,
-            reverse=True
-        )
-        
-        for rank, features in enumerate(sorted_by_rating, 1):
-            features['odds_rank'] = rank
-            features['market_rank'] = rank
+        # === MARKET RANKS REMOVED (ODDS FEATURES) ===
+        # Removed odds_rank and market_rank (data leakage from odds features)
+        # These were based on market odds, which we no longer use
         
         # === DRAW BIAS FEATURES ===
         # Get race context from first runner (all have same race)
@@ -1241,92 +1245,127 @@ class FeatureEngineer:
             'prize_money': self._parse_prize(result.get('prize'))
         }
     
-    def save_features(self, features: Dict):
-        """Save features to ml_features table - Note: New columns need to be added to table first"""
-        cursor = self.conn.cursor()
-        
-        # Try to insert with new columns, fall back to old schema if needed
-        try:
-            cursor.execute("""
-                INSERT OR REPLACE INTO ml_features (
-                    race_id, runner_id, horse_id,
-                    horse_age, horse_career_runs, horse_career_wins,
-                    horse_win_rate, horse_place_rate, horse_avg_position,
-                    horse_course_wins, horse_distance_win_rate, horse_going_win_rate,
-                    horse_days_since_last, horse_form_last_5_avg, horse_form_improving,
-                    horse_consistency, horse_best_rating,
-                    horse_best_tsr, horse_avg_tsr_last_5, speed_improving, typical_running_style,
-                    trainer_win_rate_14d, trainer_win_rate_90d, trainer_strike_rate,
-                    trainer_course_win_rate, trainer_distance_win_rate, trainer_roi,
-                    trainer_form_with_horse, trainer_rating,
-                    jockey_win_rate_14d, jockey_win_rate_90d, jockey_strike_rate,
-                    jockey_course_win_rate, jockey_distance_win_rate, jockey_roi, jockey_rating,
-                    combo_win_rate, combo_strike_rate, combo_runs,
-                    field_size, race_class, race_class_encoded, distance_f, going_encoded,
-                    surface_encoded, prize_money,
-                    runner_number, draw, weight_lbs, ofr, rpr, ts, headgear_encoded,
-                    rating_vs_avg, weight_vs_avg, age_vs_avg, weight_lbs_rank, age_rank,
-                    field_best_rpr, field_worst_rpr, field_avg_rpr, horse_rpr_rank,
-                    horse_rpr_vs_best, horse_rpr_vs_worst, field_rpr_spread, top_3_rpr_avg,
-                    horse_in_top_quartile, tsr_vs_field_avg, pace_pressure_likely,
-                    course_distance_draw_bias, draw_position_normalized, low_draw_advantage, high_draw_advantage,
-                    odds_rank, opening_odds, final_odds, odds_movement, market_rank,
-                    sire_distance_win_rate, sire_surface_win_rate, dam_produce_win_rate,
-                    odds_implied_prob, odds_is_favorite, odds_favorite_rank, odds_decimal,
-                    odds_bookmaker_count, odds_spread, odds_market_stability,
-                    horse_sex_encoded, horse_is_filly_mare, horse_is_gelding,
-                    trainer_14d_runs, trainer_14d_wins, trainer_14d_win_pct, trainer_is_hot
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
-            """, (
-                features['race_id'], features['runner_id'], features['horse_id'],
-                features['horse_age'], features['horse_career_runs'], features['horse_career_wins'],
-                features['horse_win_rate'], features['horse_place_rate'], features['horse_avg_position'],
-                features['horse_course_wins'], features['horse_distance_win_rate'], features['horse_going_win_rate'],
-                features['horse_days_since_last'], features['horse_form_last_5_avg'], features['horse_form_improving'],
-                features['horse_consistency'], features['horse_best_rating'],
-                features.get('horse_best_tsr'), features.get('horse_avg_tsr_last_5'), 
-                features.get('speed_improving', 0), features.get('typical_running_style', 3),
-                features['trainer_win_rate_14d'], features['trainer_win_rate_90d'], features['trainer_strike_rate'],
-                features['trainer_course_win_rate'], features['trainer_distance_win_rate'], features['trainer_roi'],
-                None, features.get('trainer_rating', 0),  # trainer_form_with_horse not implemented
-                features['jockey_win_rate_14d'], features['jockey_win_rate_90d'], features['jockey_strike_rate'],
-                features['jockey_course_win_rate'], None, features['jockey_roi'], features.get('jockey_rating', 0),
-                features['combo_win_rate'], features['combo_strike_rate'], features['combo_runs'],
-                features['field_size'], features['race_class'], features['race_class_encoded'], 
-                features['distance_f'], features['going_encoded'], features['surface_encoded'], features['prize_money'],
-                features['runner_number'], features['draw'], features['weight_lbs'], 
-                features['ofr'], features['rpr'], features['ts'], features['headgear_encoded'],
-                features['rating_vs_avg'], features['weight_vs_avg'], features['age_vs_avg'],
-                features.get('weight_lbs_rank'), features.get('age_rank'),
-                features.get('field_best_rpr'), features.get('field_worst_rpr'), features.get('field_avg_rpr'),
-                features.get('horse_rpr_rank'), features.get('horse_rpr_vs_best'), features.get('horse_rpr_vs_worst'),
-                features.get('field_rpr_spread'), features.get('top_3_rpr_avg'),                 features.get('horse_in_top_quartile', 0),
-                features.get('tsr_vs_field_avg'), features.get('pace_pressure_likely', 0),
-                features.get('course_distance_draw_bias'), features.get('draw_position_normalized'),
-                features.get('low_draw_advantage', 0), features.get('high_draw_advantage', 0),
-                features['odds_rank'], features['opening_odds'], features['final_odds'], 
-                features['odds_movement'], features['market_rank'],
-                features['sire_distance_win_rate'], features['sire_surface_win_rate'], features['dam_produce_win_rate'],
-                features.get('odds_implied_prob'), features.get('odds_is_favorite', 0), 
-                features.get('odds_favorite_rank', 99), features.get('odds_decimal'),
-                features.get('odds_bookmaker_count', 0), features.get('odds_spread'), 
-                features.get('odds_market_stability'),
-                features.get('horse_sex_encoded', 0), features.get('horse_is_filly_mare', 0), 
-                features.get('horse_is_gelding', 0),
-                features.get('trainer_14d_runs', 0), features.get('trainer_14d_wins', 0), 
-                features.get('trainer_14d_win_pct', 0.0), features.get('trainer_is_hot', 0)
-            ))
-        except sqlite3.OperationalError as e:
-            # If columns don't exist, log warning and skip (schema needs update)
-            logger.warning(f"Error saving features (schema may need update): {e}")
-            # Could fall back to old schema here if needed
+def save_features(self, features: Dict):
+    """Save features to ml_features table with new fundamental features (no odds)"""
+    cursor = self.conn.cursor()
     
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO ml_features (
+                race_id, runner_id, horse_id,
+                horse_age, horse_career_runs, horse_career_wins,
+                horse_win_rate, horse_place_rate, horse_avg_position,
+                horse_course_wins, horse_distance_win_rate, horse_going_win_rate,
+                horse_days_since_last, horse_form_last_5_avg, horse_form_improving,
+                horse_consistency, horse_best_rating,
+                horse_best_tsr, horse_avg_tsr_last_5, speed_improving, typical_running_style,
+                trainer_win_rate_14d, trainer_win_rate_90d, trainer_strike_rate,
+                trainer_course_win_rate, trainer_distance_win_rate, trainer_roi,
+                trainer_form_with_horse, trainer_rating,
+                jockey_win_rate_14d, jockey_win_rate_90d, jockey_strike_rate,
+                jockey_course_win_rate, jockey_distance_win_rate, jockey_roi, jockey_rating,
+                combo_win_rate, combo_strike_rate, combo_runs,
+                field_size, race_class, race_class_encoded, distance_f, going_encoded,
+                surface_encoded, prize_money,
+                runner_number, draw, weight_lbs, ofr, rpr, ts, headgear_encoded,
+                rating_vs_avg, weight_vs_avg, age_vs_avg, weight_lbs_rank, age_rank,
+                field_best_rpr, field_worst_rpr, field_avg_rpr, horse_rpr_rank,
+                horse_rpr_vs_best, horse_rpr_vs_worst, field_rpr_spread, top_3_rpr_avg,
+                horse_in_top_quartile, tsr_vs_field_avg, pace_pressure_likely,
+                course_distance_draw_bias, draw_position_normalized, low_draw_advantage, high_draw_advantage,
+                sire_distance_win_rate, sire_surface_win_rate, dam_produce_win_rate,
+                horse_sex_encoded, horse_is_filly_mare, horse_is_gelding,
+                trainer_14d_runs, trainer_14d_wins, trainer_14d_win_pct, trainer_is_hot,
+                horse_avg_speed_furlongs_per_sec, horse_best_speed_career,
+                horse_speed_last_3_avg, horse_speed_improving_new,
+                horse_speed_vs_track_record, horse_speed_consistency,
+                horse_avg_btn_last_5, horse_median_btn_last_5,
+                horse_btn_improving, horse_pct_within_3_lengths,
+                horse_btn_vs_field_avg, horse_btn_vs_winner_percentile,
+                horse_best_btn_career, horse_btn_consistency,
+                horse_avg_ovr_btn_last_5, horse_ovr_btn_improving,
+                horse_ovr_btn_vs_field, horse_pct_top_half_finishes,
+                field_quality_rating, race_competitiveness,
+                horse_beaten_by_quality,
+                horse_soft_going_speed_ratio, horse_weather_performance,
+                rail_position_advantage, going_change_adaptation,
+                horse_weight_adjusted_rating, horse_weight_performance_trend
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?
+            )
+        """, (
+            # IDs (3)
+            features['race_id'], features['runner_id'], features['horse_id'],
+            # Horse features (17)
+            features.get('horse_age'), features.get('horse_career_runs'), features.get('horse_career_wins'),
+            features.get('horse_win_rate'), features.get('horse_place_rate'), features.get('horse_avg_position'),
+            features.get('horse_course_wins'), features.get('horse_distance_win_rate'), features.get('horse_going_win_rate'),
+            features.get('horse_days_since_last'), features.get('horse_form_last_5_avg'), features.get('horse_form_improving'),
+            features.get('horse_consistency'), features.get('horse_best_rating'),
+            features.get('horse_best_tsr'), features.get('horse_avg_tsr_last_5'),
+            features.get('speed_improving', 0), features.get('typical_running_style', 3),
+            # Trainer features (8)
+            features.get('trainer_win_rate_14d'), features.get('trainer_win_rate_90d'), features.get('trainer_strike_rate'),
+            features.get('trainer_course_win_rate'), features.get('trainer_distance_win_rate'), features.get('trainer_roi'),
+            features.get('trainer_form_with_horse'), features.get('trainer_rating', 0),
+            # Jockey features (7)
+            features.get('jockey_win_rate_14d'), features.get('jockey_win_rate_90d'), features.get('jockey_strike_rate'),
+            features.get('jockey_course_win_rate'), features.get('jockey_distance_win_rate'), 
+            features.get('jockey_roi'), features.get('jockey_rating', 0),
+            # Combo features (3)
+            features.get('combo_win_rate'), features.get('combo_strike_rate'), features.get('combo_runs'),
+            # Race context (7)
+            features.get('field_size'), features.get('race_class'), features.get('race_class_encoded'),
+            features.get('distance_f'), features.get('going_encoded'), features.get('surface_encoded'), features.get('prize_money'),
+            # Runner specific (7)
+            features.get('runner_number'), features.get('draw'), features.get('weight_lbs'),
+            features.get('ofr'), features.get('rpr'), features.get('ts'), features.get('headgear_encoded'),
+            # Relative features (15)
+            features.get('rating_vs_avg'), features.get('weight_vs_avg'), features.get('age_vs_avg'),
+            features.get('weight_lbs_rank'), features.get('age_rank'),
+            features.get('field_best_rpr'), features.get('field_worst_rpr'), features.get('field_avg_rpr'),
+            features.get('horse_rpr_rank'), features.get('horse_rpr_vs_best'), features.get('horse_rpr_vs_worst'),
+            features.get('field_rpr_spread'), features.get('top_3_rpr_avg'),
+            features.get('horse_in_top_quartile', 0), features.get('tsr_vs_field_avg'), features.get('pace_pressure_likely', 0),
+            # Draw features (4)
+            features.get('course_distance_draw_bias'), features.get('draw_position_normalized'),
+            features.get('low_draw_advantage', 0), features.get('high_draw_advantage', 0),
+            # Pedigree features (3)
+            features.get('sire_distance_win_rate'), features.get('sire_surface_win_rate'), features.get('dam_produce_win_rate'),
+            # Demographic features (3)
+            features.get('horse_sex_encoded', 0), features.get('horse_is_filly_mare', 0), features.get('horse_is_gelding', 0),
+            # Trainer recent form (4)
+            features.get('trainer_14d_runs', 0), features.get('trainer_14d_wins', 0),
+            features.get('trainer_14d_win_pct', 0.0), features.get('trainer_is_hot', 0),
+            # Speed features (6) - NEW
+            features.get('horse_avg_speed_furlongs_per_sec'), features.get('horse_best_speed_career'),
+            features.get('horse_speed_last_3_avg'), features.get('horse_speed_improving_new'),
+            features.get('horse_speed_vs_track_record'), features.get('horse_speed_consistency'),
+            # BTN features (12) - NEW
+            features.get('horse_avg_btn_last_5'), features.get('horse_median_btn_last_5'),
+            features.get('horse_btn_improving'), features.get('horse_pct_within_3_lengths'),
+            features.get('horse_btn_vs_field_avg'), features.get('horse_btn_vs_winner_percentile'),
+            features.get('horse_best_btn_career'), features.get('horse_btn_consistency'),
+            features.get('horse_avg_ovr_btn_last_5'), features.get('horse_ovr_btn_improving'),
+            features.get('horse_ovr_btn_vs_field'), features.get('horse_pct_top_half_finishes'),
+            # Quality features (3) - NEW
+            features.get('field_quality_rating'), features.get('race_competitiveness'),
+            features.get('horse_beaten_by_quality'),
+            # Weather features (4) - NEW
+            features.get('horse_soft_going_speed_ratio'), features.get('horse_weather_performance'),
+            features.get('rail_position_advantage'), features.get('going_change_adaptation'),
+            # Weight features (2) - NEW
+            features.get('horse_weight_adjusted_rating'), features.get('horse_weight_performance_trend')
+        ))
+    except sqlite3.OperationalError as e:
+        # If columns don't exist, log warning and skip
+        logger.warning(f"Error saving features (schema may need update): {e}")
+
     def save_targets(self, targets: Dict):
         """Save target variables to ml_targets table"""
         if not targets:
