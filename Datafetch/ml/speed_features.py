@@ -91,6 +91,12 @@ class SpeedFeatureCalculator:
         Returns:
             Dict of speed features
         """
+        # Ensure distance_f is float (might be string from database)
+        try:
+            distance_f = float(distance_f) if distance_f is not None else 0
+        except (ValueError, TypeError):
+            distance_f = 0
+        
         # Extract speeds from past races
         speeds = []
         for race in horse_past_races:
@@ -100,10 +106,16 @@ class SpeedFeatureCalculator:
             if time_seconds and race_distance:
                 speed = calculate_speed(race_distance, time_seconds)
                 if speed:
+                    # Ensure distance_f is float (might be string from database)
+                    try:
+                        race_distance_float = float(race_distance)
+                    except (ValueError, TypeError):
+                        continue
+                    
                     speeds.append({
                         'speed': speed,
                         'course': race.get('course'),
-                        'distance_f': race_distance
+                        'distance_f': race_distance_float
                     })
         
         # Calculate features

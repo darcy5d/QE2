@@ -265,6 +265,14 @@ def calculate_field_btn_stats(all_horses_btns: List[Dict]) -> Dict[str, Dict]:
         btn = horse.get('horse_avg_btn_last_5', 0)
         ovr_btn = horse.get('horse_avg_ovr_btn_last_5', 0)
         
+        # Convert to float (might be string from database)
+        try:
+            btn = float(btn) if btn is not None else 0
+            ovr_btn = float(ovr_btn) if ovr_btn is not None else 0
+        except (ValueError, TypeError):
+            btn = 0
+            ovr_btn = 0
+        
         if btn > 0:
             avg_btns.append(btn)
         if ovr_btn > 0:
@@ -287,6 +295,14 @@ def calculate_field_btn_stats(all_horses_btns: List[Dict]) -> Dict[str, Dict]:
         horse_id = horse.get('horse_id')
         horse_btn = horse.get('horse_avg_btn_last_5', 0)
         horse_ovr_btn = horse.get('horse_avg_ovr_btn_last_5', 0)
+        
+        # Convert to float (might be string from database)
+        try:
+            horse_btn = float(horse_btn) if horse_btn is not None else 0
+            horse_ovr_btn = float(horse_ovr_btn) if horse_ovr_btn is not None else 0
+        except (ValueError, TypeError):
+            horse_btn = 0
+            horse_ovr_btn = 0
         
         # BTN vs field average (positive = better than field)
         btn_vs_field = field_avg_btn - horse_btn
