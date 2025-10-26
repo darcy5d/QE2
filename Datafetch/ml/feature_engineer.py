@@ -13,6 +13,11 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .form_parser import FormParser
+from .speed_features import SpeedFeatureCalculator
+from .btn_features import BTNFeatureCalculator, calculate_field_btn_stats
+from .quality_features import calculate_all_quality_features
+from .weather_features import calculate_all_weather_features
+from .weight_features import calculate_all_weight_features
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +53,10 @@ class FeatureEngineer:
         self.conn = None
         self.upcoming_conn = None
         self.form_parser = FormParser()
+        
+        # Initialize new feature calculators
+        self.speed_calc = SpeedFeatureCalculator()
+        self.btn_calc = BTNFeatureCalculator()
         
     def connect(self):
         """Connect to database(s)"""
@@ -471,25 +480,10 @@ class FeatureEngineer:
             'going_win_rate': wins / runs if runs > 0 else 0.0
         }
     
-    def get_opening_odds(self, runner_id: int) -> Optional[float]:
-        """Get opening odds for runner from runner_odds table"""
-        cursor = self.conn.cursor()
-        
-        cursor.execute("""
-            SELECT odds_decimal
-            FROM runner_odds
-            WHERE runner_id = ?
-            ORDER BY created_at ASC
-            LIMIT 1
-        """, (runner_id,))
-        
-        row = cursor.fetchone()
-        if row and row['odds_decimal']:
-            try:
-                return float(row['odds_decimal'])
-            except (ValueError, TypeError):
-                return None
-        return None
+    # REMOVED: get_opening_odds - part of odds leakage removal
+    # def get_opening_odds(self, runner_id: int) -> Optional[float]:
+    #     """Get opening odds for runner from runner_odds table"""
+    #     # ODDS FEATURE REMOVED TO ELIMINATE DATA LEAKAGE
     
     def compute_pace_features(self, horse_id: str, race_date: str = None) -> Dict:
         """
@@ -580,77 +574,34 @@ class FeatureEngineer:
             return int(np.median(style_scores))
         return 3
     
-    def compute_odds_features(self, runner_id: int) -> Dict:
+    # REMOVED: compute_odds_features - part of odds leakage removal  
+    # This method created 36% of model importance and caused circular logic
+    # def compute_odds_features(self, runner_id: int) -> Dict:
+    #     """ODDS FEATURES REMOVED TO ELIMINATE DATA LEAKAGE"""
+    #     # Odds features were: odds_implied_prob, odds_is_favorite, odds_favorite_rank,
+    #     # odds_decimal, odds_bookmaker_count, odds_spread, odds_market_stability
+    #     # These caused the model to learn to follow the market instead of beat it
+    #     return {}
+    
+    def get_past_races_for_features(self, horse_id: str, race_date: str, limit: int = 10) -> List[Dict]:
         """
-        Compute 7 standalone odds features
+        Get past race data needed for speed, BTN, and other new features
         
-        These complement (not replace) RPR/TS features
+        Returns list of past races with time, distance, BTN, OVR_BTN, going, weather, weight, etc.
         """
-        # Use upcoming_conn if available (for predictions), else use main conn (for training)
-        conn = self.upcoming_conn if self.upcoming_conn else self.conn
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT avg_decimal, median_decimal, min_decimal, max_decimal,
-                   bookmaker_count, implied_probability, is_favorite, favorite_rank
-            FROM runner_market_odds WHERE runner_id = ?
-        ''', (runner_id,))
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT 
+                r.time, r.btn, r.ovr_btn, r.position, r.weight_lbs, r.rpr,
+                ra.distance_f, ra.course, ra.going, ra.weather, ra.field_size, ra.date
+            FROM results r
+            JOIN races ra ON r.race_id = ra.race_id
+            WHERE r.horse_id = ? AND ra.date < ?
+            ORDER BY ra.date DESC
+            LIMIT ?
+        """, (horse_id, race_date, limit))
         
-        row = cursor.fetchone()
-        if not row:
-            # Use field averages if available (smart defaults)
-            field_odds_avg = getattr(self, '_current_field_odds_avg', {'count': 0})
-            if field_odds_avg.get('count', 0) > 0:
-                logger.debug(f"Using field average odds for runner_id={runner_id} (no individual odds)")
-                return {
-                    'odds_implied_prob': field_odds_avg.get('avg_implied_prob'),
-                    'odds_is_favorite': 0,
-                    'odds_favorite_rank': field_odds_avg.get('avg_rank', 8),
-                    'odds_decimal': field_odds_avg.get('avg_decimal'),
-                    'odds_bookmaker_count': field_odds_avg.get('avg_bookmaker_count', 0),
-                    'odds_spread': field_odds_avg.get('avg_spread', 2.0),
-                    'odds_market_stability': 0.8  # Reasonable default
-                }
-            
-            # No odds at all - use None defaults
-            if self.upcoming_conn:
-                logger.debug(f"No odds data found for runner_id={runner_id} in upcoming database")
-            return {
-                'odds_implied_prob': None,
-                'odds_is_favorite': 0,
-                'odds_favorite_rank': 99,
-                'odds_decimal': None,
-                'odds_bookmaker_count': 0,
-                'odds_spread': None,
-                'odds_market_stability': None
-            }
-        
-        avg_dec = row.get('avg_decimal')
-        med_dec = row.get('median_decimal')
-        min_dec = row.get('min_decimal')
-        max_dec = row.get('max_decimal')
-        bk_count = row.get('bookmaker_count')
-        impl_prob = row.get('implied_probability')
-        is_fav = row.get('is_favorite')
-        fav_rank = row.get('favorite_rank')
-        
-        # Calculate spread and stability
-        odds_spread = None
-        if max_dec is not None and min_dec is not None:
-            odds_spread = max_dec - min_dec
-        
-        odds_stability = None
-        if max_dec is not None and min_dec is not None and max_dec > 0:
-            odds_stability = min_dec / max_dec
-        
-        return {
-            'odds_implied_prob': impl_prob,           # Market's win probability
-            'odds_is_favorite': is_fav or 0,          # Binary: is this the favorite?
-            'odds_favorite_rank': fav_rank or 99,     # 1=fav, 2=2nd fav, etc.
-            'odds_decimal': avg_dec,                  # Average decimal odds
-            'odds_bookmaker_count': bk_count or 0,    # Market liquidity
-            'odds_spread': odds_spread,               # Price disagreement
-            'odds_market_stability': odds_stability   # Consensus level
-        }
+        return [dict(row) for row in cursor.fetchall()]
     
     def compute_demographic_features(self, runner_data: Dict) -> Dict:
         """
@@ -863,9 +814,50 @@ class FeatureEngineer:
         features['speed_improving'] = pace_features.get('speed_improving', 0)
         features['typical_running_style'] = pace_features.get('typical_running_style', 3)
         
-        # === ODDS FEATURES (NEW) ===
-        odds_features = self.compute_odds_features(runner['runner_id'])
-        features.update(odds_features)
+        # === ODDS FEATURES REMOVED (DATA LEAKAGE) ===
+        # Removed compute_odds_features() - 36% model importance from market data
+        # Replaced with fundamental features: speed, BTN, quality, weather, weight
+        
+        # === NEW FUNDAMENTAL FEATURES ===
+        # Get past race data for new feature calculations
+        past_races = self.get_past_races_for_features(horse_id, race_date, limit=10)
+        
+        # SPEED FEATURES (6 features)
+        speed_features = self.speed_calc.calculate_all_speed_features(
+            past_races, race_context.get('course'), race_context.get('distance_f')
+        )
+        features.update(speed_features)
+        
+        # BTN FEATURES (12 features) - field-relative features calculated later
+        btn_features = self.btn_calc.calculate_all_btn_features(
+            past_races, race_context.get('field_size', 10)
+        )
+        features.update(btn_features)
+        
+        # WEATHER FEATURES (4 features)
+        weather_features = calculate_all_weather_features(
+            past_races,
+            race_context.get('rail_movements', ''),
+            features.get('draw', 5),
+            race_context.get('field_size', 10),
+            race_context.get('going', 'Good')
+        )
+        features.update(weather_features)
+        
+        # WEIGHT FEATURES (2 features)
+        weight_features = calculate_all_weight_features(
+            past_races,
+            features.get('rpr', 0),
+            features.get('weight_lbs', 126),
+            race_context.get('type', 'Flat')
+        )
+        features.update(weight_features)
+        
+        # QUALITY FEATURES will be calculated at field level (after all horses processed)
+        # Placeholders:
+        features['field_quality_rating'] = None
+        features['race_competitiveness'] = None
+        features['horse_beaten_by_quality'] = None
         
         # === DEMOGRAPHIC FEATURES (NEW) ===
         demographic_features = self.compute_demographic_features(runner)
@@ -940,13 +932,9 @@ class FeatureEngineer:
         # Headgear encoding (0 = none, 1 = has headgear)
         features['headgear_encoded'] = 1 if runner.get('headgear') else 0
         
-        # === MARKET FEATURES (PLACEHOLDERS) ===
-        # These will be populated after computing relative features
-        features['opening_odds'] = None
-        features['final_odds'] = None
-        features['odds_movement'] = None
-        features['odds_rank'] = None
-        features['market_rank'] = None
+        # === MARKET FEATURES REMOVED (DATA LEAKAGE) ===
+        # Removed: opening_odds, final_odds, odds_movement, odds_rank, market_rank
+        # These created circular logic where model learned to follow market
         
         # === RELATIVE FEATURES (PLACEHOLDERS) ===
         # These are computed after we have all runners
