@@ -143,6 +143,10 @@ class WeatherFeatureCalculator:
             except:
                 continue
             
+            # Skip if weather is None or empty
+            if not weather:
+                continue
+            
             # Categorize weather
             if any(w in weather for w in WET_WEATHER):
                 wet_races.append(pos)
