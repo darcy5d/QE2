@@ -102,7 +102,7 @@ class TrainingDataValidator:
         # Total runners for target race type
         cursor.execute("""
             SELECT COUNT(*) as count 
-            FROM historical_results hr
+            FROM results hr
             JOIN races r ON hr.race_id = r.race_id
             WHERE r.type = ?
         """, (self.race_type,))
@@ -113,7 +113,7 @@ class TrainingDataValidator:
         # Runners with results (position recorded)
         cursor.execute("""
             SELECT COUNT(*) as count 
-            FROM historical_results hr
+            FROM results hr
             JOIN races r ON hr.race_id = r.race_id
             WHERE r.type = ? AND hr.position IS NOT NULL
         """, (self.race_type,))
@@ -124,7 +124,7 @@ class TrainingDataValidator:
         # Winners
         cursor.execute("""
             SELECT COUNT(*) as count 
-            FROM historical_results hr
+            FROM results hr
             JOIN races r ON hr.race_id = r.race_id
             WHERE r.type = ? AND hr.position = 1
         """, (self.race_type,))
@@ -137,7 +137,7 @@ class TrainingDataValidator:
             SELECT AVG(runner_count) as avg_runners
             FROM (
                 SELECT r.race_id, COUNT(*) as runner_count
-                FROM historical_results hr
+                FROM results hr
                 JOIN races r ON hr.race_id = r.race_id
                 WHERE r.type = ?
                 GROUP BY r.race_id
@@ -179,10 +179,10 @@ class TrainingDataValidator:
         feature_records = cursor.fetchone()['count']
         print(f"\nML feature records ({self.race_type}): {feature_records:,}")
         
-        # Check feature completeness (compare with historical_results)
+        # Check feature completeness (compare with results)
         cursor.execute("""
             SELECT COUNT(*) as count 
-            FROM historical_results hr
+            FROM results hr
             JOIN races r ON hr.race_id = r.race_id
             LEFT JOIN ml_features f ON hr.race_id = f.race_id AND hr.runner_id = f.runner_id
             WHERE r.type = ? AND f.feature_id IS NULL
@@ -255,7 +255,7 @@ class TrainingDataValidator:
         # Check target completeness
         cursor.execute("""
             SELECT COUNT(*) as count 
-            FROM historical_results hr
+            FROM results hr
             JOIN races r ON hr.race_id = r.race_id
             LEFT JOIN ml_targets t ON hr.race_id = t.race_id AND hr.runner_id = t.runner_id
             WHERE r.type = ? AND t.target_id IS NULL
@@ -304,7 +304,7 @@ class TrainingDataValidator:
         cursor.execute("""
             SELECT r.date, COUNT(*) as race_count
             FROM races r
-            JOIN historical_results hr ON r.race_id = hr.race_id
+            JOIN results hr ON r.race_id = hr.race_id
             WHERE r.type = ?
             GROUP BY r.date
             ORDER BY r.date
