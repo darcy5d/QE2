@@ -18,6 +18,11 @@ from .btn_features import BTNFeatureCalculator, calculate_field_btn_stats
 from .quality_features import calculate_all_quality_features
 from .weather_features import calculate_all_weather_features
 from .weight_features import calculate_all_weight_features
+from .market_position_features import calculate_market_position
+from .class_features import calculate_class_features
+from .course_specialist_features import calculate_course_specialist_features
+from .distance_features import calculate_distance_features
+from .trainer_hotstreak_features import calculate_trainer_hotstreak
 
 logging.basicConfig(
     level=logging.INFO,
@@ -853,6 +858,43 @@ class FeatureEngineer:
         )
         features.update(weight_features)
         
+        # === NEW DISCRIMINATING FEATURES (18 features) ===
+        
+        # MARKET POSITION (1 feature) - Categorical odds anchor
+        market_position_tier = calculate_market_position(
+            field_odds_avg  # Use average field odds as proxy for this horse
+        )
+        features['market_position_tier'] = market_position_tier
+        
+        # CLASS MOVEMENT FEATURES (4 features)
+        class_features = calculate_class_features(
+            past_races,
+            race_context.get('race_class')
+        )
+        features.update(class_features)
+        
+        # COURSE SPECIALIST FEATURES (5 features)
+        course_features = calculate_course_specialist_features(
+            past_races,
+            race_context.get('course')
+        )
+        features.update(course_features)
+        
+        # DISTANCE OPTIMIZATION FEATURES (4 features)
+        distance_features = calculate_distance_features(
+            past_races,
+            race_context.get('distance_f')
+        )
+        features.update(distance_features)
+        
+        # TRAINER HOT STREAK FEATURES (4 features)
+        trainer_hotstreak = calculate_trainer_hotstreak(
+            trainer_id,
+            race_context.get('date'),
+            self.conn
+        )
+        features.update(trainer_hotstreak)
+        
         # QUALITY FEATURES will be calculated at field level (after all horses processed)
         # Placeholders:
         features['field_quality_rating'] = None
@@ -1361,14 +1403,33 @@ class FeatureEngineer:
                     rail_position_advantage,
                     going_change_adaptation,
                     horse_weight_adjusted_rating,
-                    horse_weight_performance_trend
+                    horse_weight_performance_trend,
+                    market_position_tier,
+                    class_last_3_avg,
+                    class_change,
+                    dropping_in_class,
+                    rising_in_class,
+                    course_runs,
+                    course_wins,
+                    course_win_rate,
+                    course_place_rate,
+                    course_specialist,
+                    best_distance_f,
+                    distance_from_optimal,
+                    runs_at_distance,
+                    win_rate_at_distance,
+                    trainer_wins_last_14d,
+                    trainer_runs_last_14d,
+                    trainer_win_rate_recent,
+                    trainer_is_hot
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, (
                 features['race_id'],
@@ -1480,7 +1541,25 @@ class FeatureEngineer:
                 features.get('rail_position_advantage'),
                 features.get('going_change_adaptation'),
                 features.get('horse_weight_adjusted_rating'),
-                features.get('horse_weight_performance_trend')
+                features.get('horse_weight_performance_trend'),
+                features.get('market_position_tier'),
+                features.get('class_last_3_avg'),
+                features.get('class_change'),
+                features.get('dropping_in_class'),
+                features.get('rising_in_class'),
+                features.get('course_runs'),
+                features.get('course_wins'),
+                features.get('course_win_rate'),
+                features.get('course_place_rate'),
+                features.get('course_specialist'),
+                features.get('best_distance_f'),
+                features.get('distance_from_optimal'),
+                features.get('runs_at_distance'),
+                features.get('win_rate_at_distance'),
+                features.get('trainer_wins_last_14d'),
+                features.get('trainer_runs_last_14d'),
+                features.get('trainer_win_rate_recent'),
+                features.get('trainer_is_hot')
             ))
         except sqlite3.OperationalError as e:
             logger.warning(f"Error saving features (schema may need update): {e}")

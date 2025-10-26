@@ -13,7 +13,7 @@ This specification defines all features for the new model that eliminates data l
 
 ## Feature Categories
 
-Total features: **106 features** (down from 91 after removing 12 odds features and adding 27 new features)
+Total features: **128 features** (110 base + 18 discriminating features)
 
 1. **Horse Form & Performance**: 17 features (unchanged)
 2. **Trainer Stats**: 12 features (unchanged)
@@ -30,6 +30,11 @@ Total features: **106 features** (down from 91 after removing 12 odds features a
 13. **Race Quality**: 3 features (**NEW**)
 14. **Going/Weather**: 4 features (**NEW**)
 15. **Weight-Adjusted**: 2 features (**NEW**)
+16. **Market Position**: 1 feature (**NEW** - strategic odds anchor)
+17. **Class Movement**: 4 features (**NEW** - class changes)
+18. **Course Specialists**: 5 features (**NEW** - track suitability)
+19. **Distance Optimization**: 4 features (**NEW** - trip suitability)
+20. **Trainer Hot Streaks**: 4 features (**NEW** - recent form)
 
 ---
 
@@ -536,6 +541,197 @@ horse_weight_performance_trend = slope
 ```
 
 **Negative slope = struggles with weight, positive = handles weight well.**
+
+---
+
+### 7. Discriminating Features - Market Position (1 feature)
+
+**Purpose**: Provide categorical odds anchor without full data leakage
+
+#### 7.1 `market_position_tier`
+
+**Type**: Integer (0-4)  
+**Purpose**: Convert continuous odds to discrete market position
+
+**Calculation**:
+```python
+if odds < 3.0:
+    tier = 0  # Strong Favorite
+elif odds < 5.0:
+    tier = 1  # Co-Favorite
+elif odds < 10.0:
+    tier = 2  # Mid-range
+elif odds < 20.0:
+    tier = 3  # Outsider
+else:
+    tier = 4  # Longshot
+```
+
+**Rationale**: 
+- Categorical representation reduces data leakage vs continuous odds
+- Provides baseline ranking anchor for model
+- Model can adjust from this baseline using fundamental features
+- Less information than raw odds (5 categories vs infinite precision)
+
+---
+
+### 8. Discriminating Features - Class Movement (4 features)
+
+**Purpose**: Detect horses moving between class levels (huge signal in racing)
+
+#### 8.1 `class_last_3_avg`
+
+**Type**: Float  
+**Purpose**: Average class level over last 3 races  
+**Range**: 1.0 (highest) to 7.0 (lowest)
+
+**Calculation**: Average of parsed class from last 3 races
+
+#### 8.2 `class_change`
+
+**Type**: Float  
+**Purpose**: Difference from recent average to today's class  
+**Range**: -6.0 to +6.0
+
+**Calculation**: `current_class - class_last_3_avg`
+
+**Interpretation**:
+- Positive = Dropping in class (easier race) = GOOD
+- Negative = Rising in class (harder race) = BAD
+- Note: Class 1 is best, Class 7 is worst
+
+#### 8.3 `dropping_in_class`
+
+**Type**: Binary (0/1)  
+**Purpose**: Flag significant drop in class  
+**Calculation**: 1 if `class_change > 0.5`, else 0
+
+**Example**: Class 3→5 or Class 4→6 (easier competition)
+
+#### 8.4 `rising_in_class`
+
+**Type**: Binary (0/1)  
+**Purpose**: Flag significant rise in class  
+**Calculation**: 1 if `class_change < -0.5`, else 0
+
+**Example**: Class 5→3 or Class 6→4 (harder competition)
+
+---
+
+### 9. Discriminating Features - Course Specialists (5 features)
+
+**Purpose**: Identify horses that excel at specific tracks
+
+#### 9.1 `course_runs`
+
+**Type**: Integer  
+**Purpose**: Number of previous runs at this specific course  
+**Range**: 0 to ~50
+
+#### 9.2 `course_wins`
+
+**Type**: Integer  
+**Purpose**: Wins at this course  
+**Range**: 0 to ~20
+
+#### 9.3 `course_win_rate`
+
+**Type**: Float  
+**Purpose**: Win rate at this course  
+**Range**: 0.0 to 1.0  
+**Calculation**: `course_wins / course_runs` (min 2 runs for rate)
+
+#### 9.4 `course_place_rate`
+
+**Type**: Float  
+**Purpose**: Top 3 finish rate at this course  
+**Range**: 0.0 to 1.0
+
+#### 9.5 `course_specialist`
+
+**Type**: Binary (0/1)  
+**Purpose**: Flag proven track specialists  
+**Calculation**: 1 if `course_runs >= 3 AND course_win_rate >= 0.3`, else 0
+
+**Rationale**: Some horses perform 20-30% better at certain tracks due to track shape, surface, or familiarity
+
+---
+
+### 10. Discriminating Features - Distance Optimization (4 features)
+
+**Purpose**: Identify if horse is racing at optimal trip
+
+#### 10.1 `best_distance_f`
+
+**Type**: Float  
+**Purpose**: Distance (furlongs) where horse has best average position  
+**Range**: 5.0 to 20.0  
+**Calculation**: Find distance with lowest avg finishing position (min 2 runs)
+
+#### 10.2 `distance_from_optimal`
+
+**Type**: Float  
+**Purpose**: Absolute difference from best distance  
+**Range**: 0.0 (optimal) to 15.0 (very wrong trip)
+
+**Calculation**: `abs(current_distance - best_distance_f)`
+
+**Interpretation**:
+- 0.0-1.0 = Optimal range
+- 1.0-3.0 = Acceptable
+- 3.0+ = Wrong trip (major disadvantage)
+
+#### 10.3 `runs_at_distance`
+
+**Type**: Integer  
+**Purpose**: Experience at this distance (±0.5f)  
+**Range**: 0 to ~30
+
+#### 10.4 `win_rate_at_distance`
+
+**Type**: Float  
+**Purpose**: Win rate at this distance range  
+**Range**: 0.0 to 1.0
+
+**Rationale**: Horses bred for sprints struggle at 12f+, stayers struggle at 5-6f
+
+---
+
+### 11. Discriminating Features - Trainer Hot Streaks (4 features)
+
+**Purpose**: Capture trainer's recent form cycle
+
+#### 11.1 `trainer_wins_last_14d`
+
+**Type**: Integer  
+**Purpose**: Wins in last 14 days  
+**Range**: 0 to ~20
+
+**Calculation**: Count wins from results table where date is within 14 days before race
+
+#### 11.2 `trainer_runs_last_14d`
+
+**Type**: Integer  
+**Purpose**: Total runners in last 14 days  
+**Range**: 0 to ~100
+
+#### 11.3 `trainer_win_rate_recent`
+
+**Type**: Float  
+**Purpose**: Recent strike rate  
+**Range**: 0.0 to 1.0  
+**Calculation**: `trainer_wins_last_14d / trainer_runs_last_14d`
+
+#### 11.4 `trainer_is_hot`
+
+**Type**: Binary (0/1)  
+**Purpose**: Flag trainers in excellent recent form  
+**Calculation**: 1 if `win_rate_recent >= 0.15 AND wins >= 3`, else 0
+
+**Rationale**: 
+- Trainers cycle through hot/cold periods
+- Hot trainer = horses peaking together = 15-20% better results
+- Captures momentum better than long-term averages
 
 ---
 
