@@ -30,7 +30,7 @@ class InTheMoneyView(QWidget):
         self.bankroll = 1000.0
         self.kelly_fraction = 0.5
         self.min_edge = 0.05
-        self.market_confidence = 0.65  # Default to 65% market blend (conservative)
+        self.market_confidence = 0.0  # Default to pure model (recommended)
         self.selected_dates = []  # Empty list = All Dates
         
         # Bet type filters
@@ -288,12 +288,12 @@ class InTheMoneyView(QWidget):
         # Market confidence (blending)
         conf_label = QLabel("Market Blend:")
         conf_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
-        conf_label.setToolTip("How much to blend market probability with our model\n0% = Pure model (traditional Kelly)\n65% = Conservative (65% market + 35% model)")
+        conf_label.setToolTip("How much to blend market probability with our model\n0% = Pure model (RECOMMENDED - traditional Kelly)\n30-65% = Blend with market (reduces edge, use only if testing)")
         row2.addWidget(conf_label)
         
         self.market_confidence_combo = QComboBox()
-        self.market_confidence_combo.addItems(["0% (Pure Model)", "30% (Slight Blend)", "50% (Balanced)", "65% (Conservative)"])
-        self.market_confidence_combo.setCurrentIndex(3)  # Default to 65% (conservative)
+        self.market_confidence_combo.addItems(["0% (Pure Model - Recommended)", "30% (Slight Blend)", "50% (Balanced)", "65% (Conservative)"])
+        self.market_confidence_combo.setCurrentIndex(0)  # Default to 0% (pure model)
         self.market_confidence_combo.currentIndexChanged.connect(self.on_settings_changed)
         self.market_confidence_combo.setStyleSheet(f"""
             QComboBox {{
