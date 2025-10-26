@@ -71,8 +71,9 @@ def calculate_trainer_hotstreak(trainer_id: Optional[str],
         result = cursor.fetchone()
         
         if result:
-            total_runs = result[0] if result[0] is not None else 0
-            wins = result[1] if result[1] is not None else 0
+            # Use column names, not indices (dict_factory returns dicts)
+            total_runs = result['total_runs'] if result['total_runs'] is not None else 0
+            wins = result['wins'] if result['wins'] is not None else 0
         else:
             total_runs = 0
             wins = 0
