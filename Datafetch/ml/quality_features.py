@@ -6,7 +6,7 @@ Calculates field strength and race competitiveness metrics
 
 import numpy as np
 from typing import List, Dict, Optional
-from btn_features import parse_btn
+from .btn_features import parse_btn
 
 
 class QualityFeatureCalculator:

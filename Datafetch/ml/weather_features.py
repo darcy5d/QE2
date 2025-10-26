@@ -78,7 +78,7 @@ class WeatherFeatureCalculator:
         Returns:
             Ratio (<1.0 = prefers firm, >1.0 = prefers soft)
         """
-        from speed_features import parse_race_time, calculate_speed
+        from .speed_features import parse_race_time, calculate_speed
         
         soft_speeds = []
         firm_speeds = []
