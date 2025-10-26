@@ -30,11 +30,12 @@ class TrainingWorker(QThread):
     training_complete = Signal(dict)  # Training results
     training_error = Signal(str)  # Error messages
     
-    def __init__(self, model_type: str, config: dict, db_path: str):
+    def __init__(self, model_type: str, config: dict, db_path: str, race_type: str = 'flat'):
         super().__init__()
         self.model_type = model_type
         self.config = config
         self.db_path = db_path
+        self.race_type = race_type.lower()  # Store race type (flat/jumps)
         
     def run(self):
         """Run the training process"""
@@ -60,10 +61,10 @@ class TrainingWorker(QThread):
             root_logger = logging.getLogger()
             root_logger.addHandler(log_capture)
             
-            self.progress_update.emit("\nInitializing trainer...")
+            self.progress_update.emit(f"\nInitializing trainer for {self.race_type.upper()} racing...")
             
-            # Create trainer
-            trainer = BaselineTrainer(Path(self.db_path))
+            # Create trainer with race type
+            trainer = BaselineTrainer(Path(self.db_path), race_type=self.race_type.capitalize())
             
             self.progress_update.emit("Loading data and training model...")
             self.progress_update.emit("This may take 1-2 minutes...\n")
@@ -83,9 +84,10 @@ class TrainingWorker(QThread):
                 # Prepare results
                 results = {
                     'model_type': self.model_type,
+                    'race_type': self.race_type,
                     'metrics': metrics,
                     'feature_importance': trainer.feature_importance.to_dict('records') if trainer.feature_importance is not None else [],
-                    'model_path': str(output_dir / 'xgboost_baseline.json'),
+                    'model_path': str(output_dir / f'xgboost_{self.race_type}.json'),
                     'test_size': test_size
                 }
                 
