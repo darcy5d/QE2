@@ -374,6 +374,15 @@ class FeatureEngineer:
     def compute_course_specific_stats(self, entity_id: str, course: str, 
                                      entity_type: str = 'horse', race_date: str = None) -> Dict:
         """Get win rate at specific course for horse/trainer/jockey BEFORE given race date"""
+        # DEFENSIVE: Handle dict values
+        if isinstance(course, dict):
+            course = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
+        if not course:
+            return {}
+        
         cursor = self.conn.cursor()
         
         # Build query based on entity type
@@ -460,6 +469,12 @@ class FeatureEngineer:
     
     def compute_going_specific_stats(self, horse_id: str, going: str, race_date: str = None) -> Dict:
         """Get horse performance on similar going BEFORE given race date"""
+        # DEFENSIVE: Handle dict values
+        if isinstance(going, dict):
+            going = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
         if not going:
             return {'going_runs': 0, 'going_wins': 0, 'going_win_rate': 0.0}
         
@@ -678,6 +693,23 @@ class FeatureEngineer:
         """
         Compute draw bias features from historical data at this course/distance
         """
+        # DEFENSIVE: Handle dict/invalid values
+        if isinstance(course, dict):
+            course = None
+        if isinstance(distance_f, dict):
+            distance_f = None
+        if isinstance(draw, dict):
+            draw = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
+        # Convert distance_f to float safely
+        if distance_f is not None:
+            try:
+                distance_f = float(distance_f)
+            except (ValueError, TypeError):
+                distance_f = None
+        
         if not draw or not course or not distance_f:
             return {
                 'course_distance_draw_bias': None,
