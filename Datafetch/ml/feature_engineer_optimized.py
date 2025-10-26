@@ -95,7 +95,11 @@ def compute_race_features(race_id: str, db_path: Path) -> tuple:
         return race_id, all_features, all_targets
         
     except Exception as e:
-        logger.warning(f"Error computing features for {race_id}: {e}")
+        import traceback
+        logger.error(f"EXCEPTION for {race_id}:")
+        logger.error(f"  Type: {type(e).__name__}")
+        logger.error(f"  Message: {repr(e)}")
+        logger.error(f"  Traceback:\n{traceback.format_exc()}")
         engineer.close()
         return race_id, [], []
 
