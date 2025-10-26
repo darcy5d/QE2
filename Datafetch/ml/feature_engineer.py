@@ -754,10 +754,43 @@ class FeatureEngineer:
         
         Returns dict with ~50-100 features ready for ML
         """
+        # === SAFE EXTRACTION OF RACE_CONTEXT VALUES ===
+        # Some values in race_context might be nested dicts, which breaks comparisons
+        # Extract and validate all values at the start
+        
+        def safe_extract(value, convert_to=None):
+            """Safely extract value, handling dicts and conversion"""
+            if value is None or isinstance(value, dict):
+                return None
+            if convert_to == float:
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+            if convert_to == int:
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return None
+            return value
+        
+        # Extract ALL race_context values safely
+        race_date = safe_extract(race_context.get('date'))
+        race_id_val = safe_extract(race_context.get('race_id'))
+        race_course = safe_extract(race_context.get('course'))
+        race_distance_f = safe_extract(race_context.get('distance_f'), float)
+        race_going = safe_extract(race_context.get('going'))
+        race_going_encoded = safe_extract(race_context.get('going_encoded'), int)
+        race_surface_encoded = safe_extract(race_context.get('surface_encoded'), int)
+        race_class = safe_extract(race_context.get('race_class'))
+        race_class_encoded = safe_extract(race_context.get('race_class_encoded'), int)
+        race_prize_money = safe_extract(race_context.get('prize_money'), float)
+        race_field_size = safe_extract(race_context.get('field_size'), int)
+        race_type = safe_extract(race_context.get('type'))
+        
         horse_id = runner['horse_id']
         trainer_id = runner['trainer_id']
         jockey_id = runner['jockey_id']
-        race_date = race_context['date']
         
         # Store field_odds_avg for use in compute_odds_features
         if field_odds_avg is None:
@@ -765,7 +798,7 @@ class FeatureEngineer:
         self._current_field_odds_avg = field_odds_avg
         
         features = {
-            'race_id': race_context['race_id'],
+            'race_id': race_id_val,
             'runner_id': runner['runner_id'],
             'horse_id': horse_id
         }
@@ -795,20 +828,20 @@ class FeatureEngineer:
         
         # Course-specific performance (time-aware to prevent data leakage)
         course_stats = self.compute_course_specific_stats(
-            horse_id, race_context['course'], 'horse', race_date
+            horse_id, race_course, 'horse', race_date
         )
         features['horse_course_wins'] = course_stats.get('course_wins', 0)
         features['horse_course_win_rate'] = course_stats.get('course_win_rate', 0.0)
         
         # Distance-specific performance (time-aware to prevent data leakage)
         distance_stats = self.compute_distance_specific_stats(
-            horse_id, race_context['distance_f'], race_date
+            horse_id, race_distance_f, race_date
         )
         features['horse_distance_win_rate'] = distance_stats.get('distance_win_rate', 0.0)
         
         # Going-specific performance (time-aware to prevent data leakage)
         going_stats = self.compute_going_specific_stats(
-            horse_id, race_context['going'], race_date
+            horse_id, race_going, race_date
         )
         features['horse_going_win_rate'] = going_stats.get('going_win_rate', 0.0)
         
@@ -829,13 +862,13 @@ class FeatureEngineer:
         
         # SPEED FEATURES (6 features)
         speed_features = self.speed_calc.calculate_all_speed_features(
-            past_races, race_context.get('course'), race_context.get('distance_f')
+            past_races, race_course, race_distance_f
         )
         features.update(speed_features)
         
         # BTN FEATURES (12 features) - field-relative features calculated later
         btn_features = self.btn_calc.calculate_all_btn_features(
-            past_races, race_context.get('field_size', 10)
+            past_races, race_field_size or 10
         )
         features.update(btn_features)
         
@@ -844,8 +877,8 @@ class FeatureEngineer:
             past_races,
             race_context.get('rail_movements', ''),
             features.get('draw', 5),
-            race_context.get('field_size', 10),
-            race_context.get('going', 'Good')
+            race_field_size or 10,
+            race_going or 'Good'
         )
         features.update(weather_features)
         
@@ -854,7 +887,7 @@ class FeatureEngineer:
             past_races,
             features.get('rpr', 0),
             features.get('weight_lbs', 126),
-            race_context.get('type', 'Flat')
+            race_type or 'Flat'
         )
         features.update(weight_features)
         
@@ -937,7 +970,7 @@ class FeatureEngineer:
         
         # Trainer course specialization (time-aware to prevent data leakage)
         trainer_course_stats = self.compute_course_specific_stats(
-            trainer_id, race_context['course'], 'trainer', race_date
+            trainer_id, race_course, 'trainer', race_date
         )
         features['trainer_course_win_rate'] = trainer_course_stats.get('course_win_rate', 0.0)
         
@@ -945,9 +978,9 @@ class FeatureEngineer:
         trainer_distance_spec = trainer_stats_90d.get('distance_spec', {})
         # Find matching distance band
         features['trainer_distance_win_rate'] = 0.0
-        if race_context['distance_f']:
+        if race_distance_f:
             for band_name, band_stats in trainer_distance_spec.items():
-                if self._distance_in_band(race_context['distance_f'], band_name):
+                if self._distance_in_band(race_distance_f, band_name):
                     features['trainer_distance_win_rate'] = band_stats.get('win_rate', 0.0)
                     break
         
@@ -966,7 +999,7 @@ class FeatureEngineer:
         
         # Jockey course performance (time-aware to prevent data leakage)
         jockey_course_stats = self.compute_course_specific_stats(
-            jockey_id, race_context['course'], 'jockey', race_date
+            jockey_id, race_course, 'jockey', race_date
         )
         features['jockey_course_win_rate'] = jockey_course_stats.get('course_win_rate', 0.0)
         
@@ -977,12 +1010,12 @@ class FeatureEngineer:
         features['combo_runs'] = combo_stats.get('runs', 0)
         
         # === RACE CONTEXT FEATURES ===
-        features['distance_f'] = race_context['distance_f']
-        features['going_encoded'] = race_context['going_encoded']
-        features['surface_encoded'] = race_context['surface_encoded']
-        features['race_class'] = race_context.get('race_class')
-        features['race_class_encoded'] = race_context['race_class_encoded']
-        features['prize_money'] = race_context['prize_money']
+        features['distance_f'] = race_distance_f
+        features['going_encoded'] = race_going_encoded
+        features['surface_encoded'] = race_surface_encoded
+        features['race_class'] = race_class
+        features['race_class_encoded'] = race_class_encoded
+        features['prize_money'] = race_prize_money
         
         # === RUNNER-SPECIFIC FEATURES ===
         features['runner_number'] = self._to_int(runner.get('number'))
@@ -1070,6 +1103,16 @@ class FeatureEngineer:
     
     def _distance_in_band(self, distance_f: float, band_name: str) -> bool:
         """Check if distance falls within a band"""
+        # Handle None or dict values safely
+        if distance_f is None or isinstance(distance_f, dict):
+            return False
+        
+        # Convert to float safely
+        try:
+            distance_f = float(distance_f)
+        except (ValueError, TypeError):
+            return False
+        
         bands = {
             '5-6f': (5, 6),
             '7-8f': (7, 8),
