@@ -60,10 +60,12 @@ class ModelPredictor:
         self.feature_columns = None
         self.feature_importance = None
         self.feature_engineer = None
+        self.calibration_params = None
         self._upcoming_db_connected = False
         
         self._load_model()
         self._load_feature_metadata()
+        self._load_calibration_params()
         # Note: feature_engineer will be initialized in predict_race with upcoming_db_path
     
     def _load_model(self):
@@ -110,6 +112,26 @@ class ModelPredictor:
             print("⚠ Feature importance file not found, will use default importance")
             self.feature_importance = {col: 1.0/len(self.feature_columns) for col in self.feature_columns}
     
+    def _load_calibration_params(self):
+        """Load calibration parameters if available"""
+        race_type_lower = self.race_type.lower()
+        calibration_path = self.model_dir / f"calibration_params_{race_type_lower}.json"
+        
+        if calibration_path.exists():
+            with open(calibration_path, 'r') as f:
+                self.calibration_params = json.load(f)
+            
+            temperature = self.calibration_params.get('temperature', 1.0)
+            print(f"✓ Loaded calibration parameters (temperature: {temperature:.4f})")
+            
+            if temperature > 1.5:
+                print("  → Applying confidence reduction to predictions")
+            elif temperature < 0.7:
+                print("  → Applying confidence boost to predictions")
+        else:
+            print("⚠ No calibration parameters found - using uncalibrated probabilities")
+            print(f"  Train calibration using: python train_calibration.py --race-type {self.race_type}")
+    
     def _init_feature_engineer(self, upcoming_db_path: str = None):
         """Initialize feature engineer for generating features"""
         self.feature_engineer = FeatureEngineer(
@@ -117,6 +139,38 @@ class ModelPredictor:
             upcoming_db_path=upcoming_db_path
         )
         self.feature_engineer.connect()
+    
+    def _is_scratched(self, runner: Dict) -> bool:
+        """
+        Detect if a runner is scratched/non-runner
+        
+        Scratched indicators:
+        - runner_number is 'NR' or None
+        - jockey_name contains 'NON-RUNNER' or 'NON RUNNER'
+        - jockey_name is empty/None with runner_number = 'NR'
+        
+        Args:
+            runner: Runner dictionary with number and jockey_name
+            
+        Returns:
+            True if horse is scratched, False otherwise
+        """
+        runner_number = str(runner.get('number', '')).strip().upper()
+        jockey_name = str(runner.get('jockey_name', '')).strip().upper()
+        
+        # Check runner number
+        if runner_number in ['NR', 'N/R', '']:
+            return True
+        
+        # Check jockey name
+        if 'NON-RUNNER' in jockey_name or 'NON RUNNER' in jockey_name:
+            return True
+        
+        # Check for empty jockey with no valid number
+        if not jockey_name and not runner_number.isdigit():
+            return True
+        
+        return False
     
     def predict_race(self, race_id: str, upcoming_db_path: str) -> Dict:
         """
@@ -150,6 +204,30 @@ class ModelPredictor:
         
         print(f"\n🏇 Processing race: {race_data['race_info'].get('course')} {race_data['race_info'].get('time')}")
         print(f"   Total runners in race: {len(race_data['runners'])}")
+        
+        # Filter out scratched horses BEFORE any calculations
+        original_count = len(race_data['runners'])
+        active_runners = [r for r in race_data['runners'] if not self._is_scratched(r)]
+        scratched_count = original_count - len(active_runners)
+        
+        if scratched_count > 0:
+            scratched_names = [r.get('horse_name', 'Unknown') 
+                               for r in race_data['runners'] 
+                               if self._is_scratched(r)]
+            print(f"   ⚠️  {scratched_count} scratched horse(s): {', '.join(scratched_names)}")
+            print(f"   Active field size: {len(active_runners)}")
+            
+            # Update race_data with filtered runners and scratch info
+            race_data['runners'] = active_runners
+            race_data['race_info']['scratched_count'] = scratched_count
+            race_data['race_info']['scratched_horses'] = scratched_names
+        else:
+            race_data['race_info']['scratched_count'] = 0
+            race_data['race_info']['scratched_horses'] = []
+        
+        if len(active_runners) == 0:
+            print(f"   ❌ All horses scratched - no predictions possible!")
+            return None
         
         # PASS 1: Collect available RPR/TS values to calculate field statistics
         available_rprs = []
@@ -589,13 +667,15 @@ class ModelPredictor:
     
     def _scores_to_probabilities(self, scores: np.ndarray) -> np.ndarray:
         """
-        Convert ranking scores to probabilities using softmax
+        Convert ranking scores to probabilities using softmax with temperature scaling
         
         Ranking model outputs relative scores (higher = better).
         Softmax converts these to valid probabilities that sum to 1.0.
         
-        This is the mathematically correct way to get probabilities from
-        a ranking model - no manual normalization needed!
+        If calibration parameters are loaded, applies temperature scaling:
+        - Temperature > 1: Reduces confidence (flattens distribution)
+        - Temperature < 1: Increases confidence (sharpens distribution)
+        - Temperature = 1: No calibration (default)
         
         Args:
             scores: Ranking scores from model (higher = better)
@@ -603,9 +683,17 @@ class ModelPredictor:
         Returns:
             Probabilities that sum to 1.0
         """
-        # Softmax: exp(score) / sum(exp(scores))
+        # Apply temperature scaling if calibration parameters are available
+        temperature = 1.0
+        if self.calibration_params:
+            temperature = self.calibration_params.get('temperature', 1.0)
+        
+        # Scale scores by temperature
+        scaled_scores = scores / temperature
+        
+        # Softmax: exp(scaled_score) / sum(exp(scaled_scores))
         # Subtract max for numerical stability (prevents overflow)
-        exp_scores = np.exp(scores - np.max(scores))
+        exp_scores = np.exp(scaled_scores - np.max(scaled_scores))
         probabilities = exp_scores / exp_scores.sum()
         
         return probabilities
