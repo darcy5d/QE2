@@ -49,8 +49,22 @@ def compute_race_features(race_id: str, db_path: Path) -> tuple:
         
         for runner in runners:
             result = engineer.get_runner_result(race_id, runner['horse_id'])
-            features = engineer.compute_runner_features(runner, race_context, result)
-            all_features.append(features)
+            try:
+                features = engineer.compute_runner_features(runner, race_context, result)
+                all_features.append(features)
+            except TypeError as e:
+                if "'<=' not supported between instances of 'dict' and 'int'" in str(e):
+                    # DIAGNOSTIC: Log the exact values causing the error
+                    import json
+                    logger.error(f"DIAGNOSTIC for {race_id}:")
+                    logger.error(f"  race_context keys: {list(race_context.keys())}")
+                    for k, v in race_context.items():
+                        logger.error(f"    {k}: {type(v).__name__} = {repr(v)[:100]}")
+                    logger.error(f"  runner keys: {list(runner.keys())}")
+                    logger.error(f"  Full error: {e}")
+                    import traceback
+                    logger.error(f"  Traceback:\n{traceback.format_exc()}")
+                raise
             
             targets = engineer.compute_target_variables(
                 race_id, runner['horse_id'], runner['runner_id'], result
