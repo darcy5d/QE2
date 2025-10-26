@@ -164,22 +164,30 @@ class FeatureEngineer:
             except (ValueError, TypeError):
                 pass
         
+        # CRITICAL FIX: Ensure NO dict values are returned
+        # Some database values might be nested dicts which break comparisons
+        def safe_value(val):
+            """Return None if value is a dict, otherwise return the value"""
+            return None if isinstance(val, dict) else val
+        
         return {
-            'race_id': race_id,
-            'course': race['course'],
-            'course_id': race['course_id'],
-            'distance_f': distance_f_val,
-            'going': race['going'],
-            'going_encoded': going_encoded,
-            'surface': race['surface'],
-            'surface_encoded': surface_encoded,
-            'race_class': race['race_class'],
-            'race_class_encoded': race_class_num,
-            'race_type': race['race_type'],
-            'race_type_encoded': race_type_encoded,
-            'prize_money': prize_money,
-            'date': race['date'],
-            'region': race['region']
+            'race_id': safe_value(race_id),
+            'course': safe_value(race['course']),
+            'course_id': safe_value(race['course_id']),
+            'distance_f': distance_f_val,  # Already validated
+            'going': safe_value(race['going']),
+            'going_encoded': going_encoded,  # Already int
+            'surface': safe_value(race['surface']),
+            'surface_encoded': surface_encoded,  # Already int
+            'race_class': safe_value(race['race_class']),
+            'race_class_encoded': race_class_num,  # Already int/None
+            'race_type': safe_value(race['race_type']),
+            'race_type_encoded': race_type_encoded,  # Already int
+            'prize_money': prize_money,  # Already float
+            'date': safe_value(race['date']),
+            'region': safe_value(race['region']),
+            'field_size': 10,  # Add missing field_size with default
+            'type': safe_value(race['race_type'])  # Add 'type' alias for backwards compat
         }
     
     def get_runners_for_race(self, race_id: str) -> List[Dict]:
