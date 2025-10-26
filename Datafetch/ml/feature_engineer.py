@@ -883,7 +883,7 @@ class FeatureEngineer:
         # WEATHER FEATURES (4 features)
         weather_features = calculate_all_weather_features(
             past_races,
-            race_context.get('rail_movements', ''),
+            '',  # rail_movements not in database, use empty string
             features.get('draw', 5),
             race_field_size or 10,
             race_going or 'Good'
@@ -908,51 +908,34 @@ class FeatureEngineer:
         features['market_position_tier'] = market_position_tier
         
         # CLASS MOVEMENT FEATURES (4 features)
-        # Safe extraction of race_class (might be nested)
-        race_class_val = race_context.get('race_class')
-        if isinstance(race_class_val, dict):
-            race_class_val = None
+        # Use safe variable already extracted at top of function
         class_features = calculate_class_features(
             past_races,
-            race_class_val
+            race_class
         )
         features.update(class_features)
         
         # COURSE SPECIALIST FEATURES (5 features)
-        # Safe extraction of course
-        course_val = race_context.get('course')
-        if isinstance(course_val, dict):
-            course_val = None
+        # Use safe variable already extracted at top of function
         course_features = calculate_course_specialist_features(
             past_races,
-            course_val
+            race_course
         )
         features.update(course_features)
         
         # DISTANCE OPTIMIZATION FEATURES (4 features)
-        # Safe extraction of distance_f - convert to float
-        distance_val = race_context.get('distance_f')
-        if isinstance(distance_val, dict):
-            distance_val = None
-        elif distance_val is not None:
-            try:
-                distance_val = float(distance_val)
-            except (ValueError, TypeError):
-                distance_val = None
+        # Use safe variable already extracted at top of function
         distance_features = calculate_distance_features(
             past_races,
-            distance_val
+            race_distance_f
         )
         features.update(distance_features)
         
         # TRAINER HOT STREAK FEATURES (4 features)
-        # Safe extraction of date
-        date_val = race_context.get('date')
-        if isinstance(date_val, dict):
-            date_val = None
+        # Use safe variable already extracted at top of function
         trainer_hotstreak = calculate_trainer_hotstreak(
             trainer_id,
-            date_val,
+            race_date,
             self.conn
         )
         features.update(trainer_hotstreak)
