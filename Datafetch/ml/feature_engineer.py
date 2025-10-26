@@ -867,30 +867,51 @@ class FeatureEngineer:
         features['market_position_tier'] = market_position_tier
         
         # CLASS MOVEMENT FEATURES (4 features)
+        # Safe extraction of race_class (might be nested)
+        race_class_val = race_context.get('race_class')
+        if isinstance(race_class_val, dict):
+            race_class_val = None
         class_features = calculate_class_features(
             past_races,
-            race_context.get('race_class')
+            race_class_val
         )
         features.update(class_features)
         
         # COURSE SPECIALIST FEATURES (5 features)
+        # Safe extraction of course
+        course_val = race_context.get('course')
+        if isinstance(course_val, dict):
+            course_val = None
         course_features = calculate_course_specialist_features(
             past_races,
-            race_context.get('course')
+            course_val
         )
         features.update(course_features)
         
         # DISTANCE OPTIMIZATION FEATURES (4 features)
+        # Safe extraction of distance_f - convert to float
+        distance_val = race_context.get('distance_f')
+        if isinstance(distance_val, dict):
+            distance_val = None
+        elif distance_val is not None:
+            try:
+                distance_val = float(distance_val)
+            except (ValueError, TypeError):
+                distance_val = None
         distance_features = calculate_distance_features(
             past_races,
-            race_context.get('distance_f')
+            distance_val
         )
         features.update(distance_features)
         
         # TRAINER HOT STREAK FEATURES (4 features)
+        # Safe extraction of date
+        date_val = race_context.get('date')
+        if isinstance(date_val, dict):
+            date_val = None
         trainer_hotstreak = calculate_trainer_hotstreak(
             trainer_id,
-            race_context.get('date'),
+            date_val,
             self.conn
         )
         features.update(trainer_hotstreak)
