@@ -43,33 +43,44 @@ def calculate_distance_features(horse_past_races: List[Dict],
         Horse best at 8f racing at 8f = optimal (distance_from_optimal = 0)
         Horse best at 6f racing at 10f = wrong trip (distance_from_optimal = 4)
     """
-    if not horse_past_races or current_distance_f is None or current_distance_f <= 0:
-        return {
-            'best_distance_f': None,
-            'distance_from_optimal': None,
-            'runs_at_distance': 0,
-            'win_rate_at_distance': 0.0
-        }
+    # Default return
+    default_return = {
+        'best_distance_f': None,
+        'distance_from_optimal': None,
+        'runs_at_distance': 0,
+        'win_rate_at_distance': 0.0
+    }
     
-    # Convert current distance to float
+    # Check if current_distance_f is valid (not None, not dict, can convert to float)
+    if current_distance_f is None or isinstance(current_distance_f, dict):
+        return default_return
+    
+    # Convert current distance to float safely
     try:
         current_distance_f = float(current_distance_f)
+        if current_distance_f <= 0:
+            return default_return
     except (ValueError, TypeError):
-        return {
-            'best_distance_f': None,
-            'distance_from_optimal': None,
-            'runs_at_distance': 0,
-            'win_rate_at_distance': 0.0
-        }
+        return default_return
+    
+    if not horse_past_races:
+        return default_return
     
     # Group past races by distance, calculate average position
     distance_performance = {}  # {distance: [positions]}
     
     for race in horse_past_races:
+        # Skip if race is not a dict
+        if not isinstance(race, dict):
+            continue
+            
         dist = race.get('distance_f')
         position = race.get('position')
         
+        # Skip if values are None or dicts
         if dist is None or position is None:
+            continue
+        if isinstance(dist, dict) or isinstance(position, dict):
             continue
         
         try:
@@ -87,12 +98,7 @@ def calculate_distance_features(horse_past_races: List[Dict],
             continue
     
     if not distance_performance:
-        return {
-            'best_distance_f': None,
-            'distance_from_optimal': None,
-            'runs_at_distance': 0,
-            'win_rate_at_distance': 0.0
-        }
+        return default_return
     
     # Find best distance (lowest average position, min 2 runs)
     best_distance = None
@@ -124,10 +130,17 @@ def calculate_distance_features(horse_past_races: List[Dict],
     same_distance_wins = 0
     
     for race in horse_past_races:
+        # Skip if race is not a dict
+        if not isinstance(race, dict):
+            continue
+            
         dist = race.get('distance_f')
         position = race.get('position')
         
+        # Skip if values are None or dicts
         if dist is None or position is None:
+            continue
+        if isinstance(dist, dict) or isinstance(position, dict):
             continue
         
         try:
@@ -155,4 +168,3 @@ def calculate_distance_features(horse_past_races: List[Dict],
         'runs_at_distance': runs_at_distance,
         'win_rate_at_distance': float(win_rate_at_distance)
     }
-

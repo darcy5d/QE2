@@ -92,7 +92,17 @@ def calculate_class_features(horse_past_races: List[Dict],
     # Extract classes from past races (last 3)
     recent_classes = []
     for race in horse_past_races[:3]:
-        race_class = parse_race_class(race.get('class'))
+        # Skip if race is not a dict
+        if not isinstance(race, dict):
+            continue
+        
+        class_val = race.get('class')
+        
+        # Skip if class is a dict
+        if isinstance(class_val, dict):
+            continue
+            
+        race_class = parse_race_class(class_val)
         if race_class is not None:
             recent_classes.append(race_class)
     

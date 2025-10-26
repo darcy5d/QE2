@@ -36,30 +36,49 @@ def calculate_course_specialist_features(horse_past_races: List[Dict],
         Horse with 4 wins from 10 runs at Wolverhampton = 40% win rate (specialist!)
         Horse with 0 runs at Newbury = no specialist signal
     """
-    if not horse_past_races or not current_course:
-        return {
-            'course_runs': 0,
-            'course_wins': 0,
-            'course_win_rate': 0.0,
-            'course_place_rate': 0.0,
-            'course_specialist': 0
-        }
+    # Default return
+    default_return = {
+        'course_runs': 0,
+        'course_wins': 0,
+        'course_win_rate': 0.0,
+        'course_place_rate': 0.0,
+        'course_specialist': 0
+    }
+    
+    # Check if inputs are valid
+    if not horse_past_races or not current_course or isinstance(current_course, dict):
+        return default_return
+    
+    # Convert course to string
+    try:
+        current_course = str(current_course).lower().strip()
+        if not current_course:
+            return default_return
+    except:
+        return default_return
     
     # Filter races at this specific course
     course_runs = []
     for race in horse_past_races:
-        race_course = race.get('course', '').strip()
-        if race_course.lower() == current_course.lower():
-            course_runs.append(race)
+        # Skip if race is not a dict
+        if not isinstance(race, dict):
+            continue
+            
+        race_course = race.get('course')
+        
+        # Skip if course is None or dict
+        if race_course is None or isinstance(race_course, dict):
+            continue
+        
+        try:
+            race_course_str = str(race_course).lower().strip()
+            if race_course_str == current_course:
+                course_runs.append(race)
+        except:
+            continue
     
     if not course_runs:
-        return {
-            'course_runs': 0,
-            'course_wins': 0,
-            'course_win_rate': 0.0,
-            'course_place_rate': 0.0,
-            'course_specialist': 0
-        }
+        return default_return
     
     # Count wins and places
     course_wins = 0
@@ -68,15 +87,18 @@ def calculate_course_specialist_features(horse_past_races: List[Dict],
     for race in course_runs:
         position = race.get('position')
         
+        # Skip if position is None or dict
+        if position is None or isinstance(position, dict):
+            continue
+        
         # Try to parse position
         try:
-            if position is not None:
-                pos_int = int(position)
-                if pos_int == 1:
-                    course_wins += 1
-                    course_places += 1
-                elif pos_int <= 3:
-                    course_places += 1
+            pos_int = int(position)
+            if pos_int == 1:
+                course_wins += 1
+                course_places += 1
+            elif pos_int <= 3:
+                course_places += 1
         except (ValueError, TypeError):
             # Skip non-numeric positions (e.g., 'DQ', 'PU')
             pass
@@ -102,4 +124,3 @@ def calculate_course_specialist_features(horse_past_races: List[Dict],
         'course_place_rate': float(course_place_rate),
         'course_specialist': is_specialist
     }
-
