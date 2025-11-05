@@ -2,7 +2,7 @@
 Navigation Ribbon - Top navigation bar for dashboard
 """
 
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QComboBox, QLabel
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont
 
@@ -20,6 +20,7 @@ class NavigationRibbon(QWidget):
     ml_training_clicked = Signal()
     predictions_clicked = Signal()
     in_the_money_clicked = Signal()
+    model_changed = Signal(str)  # Emits model_type ('btn' or 'ranking')
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -111,6 +112,52 @@ class NavigationRibbon(QWidget):
         layout.addWidget(self.in_the_money_btn)
         layout.addStretch()
         
+        # Model selector
+        model_label = QLabel("Model:")
+        model_label.setStyleSheet("color: #333; font-weight: bold; font-size: 12px; padding-right: 5px;")
+        layout.addWidget(model_label)
+        
+        self.model_combo = QComboBox()
+        self.model_combo.addItem("BTN Regression (Kelly Recommended)", "btn")
+        self.model_combo.addItem("Baseline Ranking (Research)", "ranking")
+        self.model_combo.setCurrentIndex(0)  # Default to BTN
+        self.model_combo.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                color: #333;
+                border: 1px solid #CCC;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 12px;
+                min-width: 250px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                padding-right: 5px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 6px solid #666;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: #333;
+                selection-background-color: #4A90E2;
+                selection-color: white;
+                border: 1px solid #CCC;
+            }
+        """)
+        self.model_combo.setToolTip(
+            "BTN Regression: Best probability discrimination (CV 1.60). Optimal for Kelly Criterion betting.\n"
+            "Baseline Ranking: Higher raw accuracy (26.3%) but lower discrimination (CV 0.40)."
+        )
+        self.model_combo.currentIndexChanged.connect(self.on_model_changed)
+        layout.addWidget(self.model_combo)
+        layout.addSpacing(10)
+        
         self.setLayout(layout)
         self.setFixedHeight(50)
         self.setStyleSheet("background-color: #F5F5F5;")
@@ -197,4 +244,14 @@ class NavigationRibbon(QWidget):
         """Handle in the money button click"""
         self.set_active('in_the_money')
         self.in_the_money_clicked.emit()
+    
+    def on_model_changed(self, index):
+        """Handle model selection change"""
+        model_type = self.model_combo.itemData(index)
+        print(f"Model changed to: {model_type} ({self.model_combo.currentText()})")
+        self.model_changed.emit(model_type)
+    
+    def get_current_model_type(self):
+        """Get the currently selected model type"""
+        return self.model_combo.currentData()
 

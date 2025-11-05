@@ -36,6 +36,9 @@ class DashboardWindow(QMainWindow):
             QApplication.quit()
             return
         
+        # Store current model type (default to BTN)
+        self.current_model_type = 'btn'
+        
         self.setup_ui()
         self.connect_signals()
         
@@ -112,6 +115,7 @@ class DashboardWindow(QMainWindow):
         self.nav_ribbon.ml_training_clicked.connect(self.show_ml_training)
         self.nav_ribbon.predictions_clicked.connect(self.show_predictions)
         self.nav_ribbon.in_the_money_clicked.connect(self.show_in_the_money)
+        self.nav_ribbon.model_changed.connect(self.on_model_changed)
         
         # Dashboard tiles
         self.dashboard_view.racecard_clicked.connect(self.show_racecard)
@@ -208,6 +212,16 @@ class DashboardWindow(QMainWindow):
         # Show success message
         QMessageBox.information(self, "Refresh Complete", 
                               "All tabs refreshed with latest data!")
+    
+    @Slot(str)
+    def on_model_changed(self, model_type: str):
+        """Handle model selection change from navigation ribbon"""
+        self.current_model_type = model_type
+        print(f"Dashboard: Model changed to {model_type}")
+        
+        # Forward model selection to prediction views
+        self.predictions_view.set_model_type(model_type)
+        self.in_the_money_view.set_model_type(model_type)
     
     def closeEvent(self, event):
         """Handle window close event"""

@@ -613,15 +613,15 @@ class FeatureEngineer:
     
     def get_past_races_for_features(self, horse_id: str, race_date: str, limit: int = 10) -> List[Dict]:
         """
-        Get past race data needed for speed, BTN, and other new features
+        Get past race data needed for speed, BTN, class, and other new features
         
-        Returns list of past races with time, distance, BTN, OVR_BTN, going, weather, weight, etc.
+        Returns list of past races with time, distance, BTN, OVR_BTN, going, weather, weight, class, etc.
         """
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT 
                 r.time, r.btn, r.ovr_btn, r.position, r.weight_lbs, r.rpr,
-                ra.distance_f, ra.course, ra.going, ra.weather, ra.field_size, ra.date
+                ra.distance_f, ra.course, ra.going, ra.weather, ra.field_size, ra.date, ra.race_class as class
             FROM results r
             JOIN races ra ON r.race_id = ra.race_id
             WHERE r.horse_id = ? AND ra.date < ?
@@ -974,11 +974,7 @@ class FeatureEngineer:
         )
         features.update(trainer_hotstreak)
         
-        # QUALITY FEATURES will be calculated at field level (after all horses processed)
-        # Placeholders:
-        features['field_quality_rating'] = None
-        features['race_competitiveness'] = None
-        features['horse_beaten_by_quality'] = None
+        # QUALITY FEATURES removed - were unimplemented placeholders always set to None
         
         # === DEMOGRAPHIC FEATURES (NEW) ===
         demographic_features = self.compute_demographic_features(runner)
@@ -1125,6 +1121,45 @@ class FeatureEngineer:
             return float(cleaned)
         except (ValueError, TypeError):
             return 0.0
+    
+    def _parse_time_to_seconds(self, time_str: str) -> Optional[float]:
+        """
+        Convert time string 'minutes:seconds.centiseconds' to total seconds
+        
+        Examples:
+            '4:2.91' -> 242.91 seconds
+            '1:15.08' -> 75.08 seconds
+            '5:23.46' -> 323.46 seconds
+        """
+        if not time_str:
+            return None
+        try:
+            parts = time_str.split(':')
+            if len(parts) != 2:
+                return None
+            minutes = int(parts[0])
+            seconds = float(parts[1])
+            return minutes * 60 + seconds
+        except (ValueError, TypeError, AttributeError):
+            return None
+    
+    def _calculate_speed(self, distance_f: float, time_seconds: float) -> Optional[float]:
+        """
+        Calculate speed in furlongs per second
+        
+        Args:
+            distance_f: Distance in furlongs
+            time_seconds: Finishing time in seconds
+            
+        Returns:
+            Speed in furlongs/second (higher = faster)
+        """
+        if not distance_f or not time_seconds or time_seconds <= 0:
+            return None
+        try:
+            return float(distance_f) / float(time_seconds)
+        except (ValueError, TypeError, ZeroDivisionError):
+            return None
     
     def _distance_in_band(self, distance_f: float, band_name: str) -> bool:
         """Check if distance falls within a band"""
@@ -1354,14 +1389,44 @@ class FeatureEngineer:
         return all_runner_features
     
     def compute_target_variables(self, race_id: str, horse_id: str, 
-                                runner_id: int, result: Dict) -> Dict:
-        """Compute target variables from race result"""
+                                runner_id: int, result: Dict, 
+                                distance_f: Optional[float] = None) -> Dict:
+        """
+        Compute target variables from race result
+        
+        Args:
+            race_id: Race identifier
+            horse_id: Horse identifier
+            runner_id: Runner identifier
+            result: Race result dictionary
+            distance_f: Race distance in furlongs (optional, for speed calculation)
+            
+        Returns:
+            Dictionary with target variables including:
+                - position, won, placed, top_5 (existing)
+                - btn: Beaten lengths (for Model 2)
+                - time_seconds: Parsed finish time (for Model 3 & 4)
+                - speed: Speed in f/s (for Model 3 & 4)
+                - speed_deficit: Will be computed per-race later (for Model 4)
+        """
         if not result:
             return None
         
         position = result.get('position_int')
         if position is None or position >= 900:  # DNF
             return None
+        
+        # Parse time string to seconds
+        time_str = result.get('time')
+        time_seconds = self._parse_time_to_seconds(time_str)
+        
+        # Calculate speed (furlongs per second)
+        speed = None
+        if distance_f and time_seconds:
+            speed = self._calculate_speed(distance_f, time_seconds)
+        
+        # BTN (beaten lengths) - for regression model
+        btn = self._to_float(result.get('ovr_btn'))
         
         return {
             'race_id': race_id,
@@ -1371,9 +1436,14 @@ class FeatureEngineer:
             'won': 1 if position == 1 else 0,
             'placed': 1 if position <= 3 else 0,
             'top_5': 1 if position <= 5 else 0,
-            'beaten_lengths': self._to_float(result.get('ovr_btn')),
-            'finishing_time': result.get('time'),
-            'prize_money': self._parse_prize(result.get('prize'))
+            'beaten_lengths': btn,  # Keep for compatibility
+            'finishing_time': time_str,  # Keep original string
+            'prize_money': self._parse_prize(result.get('prize')),
+            # NEW targets for regression models:
+            'btn': btn,  # Model 2 target
+            'time_seconds': time_seconds,  # For Model 3 & 4
+            'speed': speed,  # Model 3 target (absolute speed)
+            'speed_deficit': None  # Model 4 target (computed per-race after collecting all speeds)
         }
     
     def save_features(self, features: Dict):
@@ -1701,12 +1771,31 @@ class FeatureEngineer:
                 features = self.compute_runner_features(runner, race_context, result)
                 all_features.append(features)
                 
-                # Compute targets
+                # Compute targets (with distance for speed calculation)
+                distance_f = race_context.get('distance_f') if race_context else None
                 targets = self.compute_target_variables(
-                    race_id, runner['horse_id'], runner['runner_id'], result
+                    race_id, runner['horse_id'], runner['runner_id'], result, distance_f
                 )
                 if targets:
                     all_targets.append(targets)
+            
+            # Post-process: Compute speed_deficit (Model 4 target)
+            # Speed deficit = horse_speed - winner_speed (0 for winner, negative for others)
+            if all_targets:
+                # Find winner's speed (position 1)
+                winner_speed = None
+                for target in all_targets:
+                    if target.get('position') == 1 and target.get('speed') is not None:
+                        winner_speed = target['speed']
+                        break
+                
+                # Calculate deficit for each horse
+                if winner_speed is not None:
+                    for target in all_targets:
+                        if target.get('speed') is not None:
+                            target['speed_deficit'] = target['speed'] - winner_speed
+                        else:
+                            target['speed_deficit'] = None
             
             # Compute relative features (modifies in place)
             all_features = self.compute_relative_features(all_features)

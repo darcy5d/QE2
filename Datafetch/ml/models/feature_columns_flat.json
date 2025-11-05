@@ -104,5 +104,22 @@
   "rail_position_advantage",
   "going_change_adaptation",
   "horse_weight_adjusted_rating",
-  "horse_weight_performance_trend"
+  "horse_weight_performance_trend",
+  "market_position_tier",
+  "class_last_3_avg",
+  "class_change",
+  "dropping_in_class",
+  "rising_in_class",
+  "course_runs",
+  "course_wins",
+  "course_win_rate",
+  "course_place_rate",
+  "course_specialist",
+  "best_distance_f",
+  "distance_from_optimal",
+  "runs_at_distance",
+  "win_rate_at_distance",
+  "trainer_wins_last_14d",
+  "trainer_runs_last_14d",
+  "trainer_win_rate_recent"
 ]

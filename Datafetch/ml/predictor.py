@@ -31,7 +31,8 @@ def dict_factory(cursor, row):
 class ModelPredictor:
     """Generate predictions for upcoming races using trained ML model"""
     
-    def __init__(self, model_path: str = None, racing_db_path: str = None, race_type: str = 'Flat'):
+    def __init__(self, model_path: str = None, racing_db_path: str = None, race_type: str = 'Flat', 
+                 model_type: str = 'ranking'):
         """
         Initialize predictor with trained model
         
@@ -39,8 +40,10 @@ class ModelPredictor:
             model_path: Path to trained model JSON file (optional, auto-generates from race_type if not provided)
             racing_db_path: Path to racing_pro.db with historical data
             race_type: Type of races to predict ('Flat', 'Hurdle', 'Chase')
+            model_type: Type of model ('ranking', 'btn', 'speed_abs', 'speed_rel')
         """
         self.race_type = race_type
+        self.model_type = model_type
         self.model_dir = Path(__file__).parent / "models"
         
         # Auto-generate model path based on race type if not provided
@@ -48,7 +51,15 @@ class ModelPredictor:
             self.model_path = Path(model_path)
         else:
             race_type_lower = race_type.lower()
-            self.model_path = self.model_dir / f"xgboost_{race_type_lower}.json"
+            # Select model file based on model_type
+            if model_type == 'btn':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_btn.json"
+            elif model_type == 'speed_abs':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_speed_abs.json"
+            elif model_type == 'speed_rel':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_speed_rel.json"
+            else:  # default to ranking
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}.json"
         
         # Database paths
         if racing_db_path:
@@ -667,34 +678,50 @@ class ModelPredictor:
     
     def _scores_to_probabilities(self, scores: np.ndarray) -> np.ndarray:
         """
-        Convert ranking scores to probabilities using softmax with temperature scaling
+        Convert model scores to probabilities using appropriate method for model type
         
-        Ranking model outputs relative scores (higher = better).
-        Softmax converts these to valid probabilities that sum to 1.0.
-        
-        If calibration parameters are loaded, applies temperature scaling:
-        - Temperature > 1: Reduces confidence (flattens distribution)
-        - Temperature < 1: Increases confidence (sharpens distribution)
-        - Temperature = 1: No calibration (default)
+        Different model types require different probability conversions:
+        - ranking: Standard softmax with optional temperature scaling
+        - btn: Softmax on negative scores (smaller BTN = better)
+        - speed_abs: Softmax on raw scores (higher speed = better)
+        - speed_rel: Softmax on raw scores (higher/closer to 0 = better)
         
         Args:
-            scores: Ranking scores from model (higher = better)
+            scores: Raw model predictions
             
         Returns:
             Probabilities that sum to 1.0
         """
-        # Apply temperature scaling if calibration parameters are available
+        # Get temperature for ranking model
         temperature = 1.0
-        if self.calibration_params:
+        if self.model_type == 'ranking' and self.calibration_params:
             temperature = self.calibration_params.get('temperature', 1.0)
         
-        # Scale scores by temperature
-        scaled_scores = scores / temperature
+        # Convert scores based on model type
+        if self.model_type == 'btn':
+            # BTN model: smaller is better (0=winner, higher=further behind)
+            # Apply softmax to negative values
+            exp_scores = np.exp(-scores - np.min(-scores))
+            probabilities = exp_scores / exp_scores.sum()
         
-        # Softmax: exp(scaled_score) / sum(exp(scaled_scores))
-        # Subtract max for numerical stability (prevents overflow)
-        exp_scores = np.exp(scaled_scores - np.max(scaled_scores))
-        probabilities = exp_scores / exp_scores.sum()
+        elif self.model_type == 'speed_abs':
+            # Speed model: higher is better (faster = more likely to win)
+            # Standard softmax
+            exp_scores = np.exp(scores - np.max(scores))
+            probabilities = exp_scores / exp_scores.sum()
+        
+        elif self.model_type == 'speed_rel':
+            # Relative speed: values closer to 0 are better (0=winner, negative=slower)
+            # Higher values (closer to 0) are better
+            # Standard softmax works here
+            exp_scores = np.exp(scores - np.max(scores))
+            probabilities = exp_scores / exp_scores.sum()
+        
+        else:  # ranking (default)
+            # Ranking model with optional temperature scaling
+            scaled_scores = scores / temperature
+            exp_scores = np.exp(scaled_scores - np.max(scaled_scores))
+            probabilities = exp_scores / exp_scores.sum()
         
         return probabilities
     

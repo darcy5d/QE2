@@ -1,0 +1,11 @@
+{
+  "rmse": 0.0011084686861476173,
+  "mae": 0.000718625486915164,
+  "r2": 0.18207859869467602,
+  "top_pick_accuracy": 25.824760553387726,
+  "top_3_hit_rate": 56.677293659227765,
+  "mrr": 0.46540747347412026,
+  "model_type": "speed_relative_regression",
+  "target": "speed_deficit_from_winner",
+  "trained_at": "2025-11-06T05:59:44.219773"
+}

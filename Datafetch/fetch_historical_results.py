@@ -367,7 +367,7 @@ def main():
     """Main execution"""
     parser = argparse.ArgumentParser(description='Fetch historical race results')
     parser.add_argument('--start-date', default='2023-01-23', help='Start date (YYYY-MM-DD)')
-    parser.add_argument('--end-date', default='2023-04-30', help='End date (YYYY-MM-DD)')
+    parser.add_argument('--end-date', default='2025-10-25', help='End date (YYYY-MM-DD)')
     parser.add_argument('--test', action='store_true', help='Test mode (first 3 days only)')
     
     args = parser.parse_args()

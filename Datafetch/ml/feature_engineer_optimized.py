@@ -66,11 +66,28 @@ def compute_race_features(race_id: str, db_path: Path) -> tuple:
                     logger.error(f"  Traceback:\n{traceback.format_exc()}")
                 raise
             
+            # Compute targets (with distance for speed calculation)
+            distance_f = race_context.get('distance_f') if race_context else None
             targets = engineer.compute_target_variables(
-                race_id, runner['horse_id'], runner['runner_id'], result
+                race_id, runner['horse_id'], runner['runner_id'], result, distance_f
             )
             if targets:
                 all_targets.append(targets)
+        
+        # Post-process: Compute speed_deficit (Model 4 target)
+        if all_targets:
+            winner_speed = None
+            for target in all_targets:
+                if target.get('position') == 1 and target.get('speed') is not None:
+                    winner_speed = target['speed']
+                    break
+            
+            if winner_speed is not None:
+                for target in all_targets:
+                    if target.get('speed') is not None:
+                        target['speed_deficit'] = target['speed'] - winner_speed
+                    else:
+                        target['speed_deficit'] = None
         
         # Compute relative features
         all_features = engineer.compute_relative_features(all_features)

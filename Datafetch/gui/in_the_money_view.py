@@ -26,11 +26,13 @@ class InTheMoneyView(QWidget):
         self.db = db_helper
         self.upcoming_db_path = Path(__file__).parent.parent / "upcoming_races.db"
         
+        # Model type for predictions (default to BTN)
+        self.model_type = 'btn'
+        
         # Default settings
         self.bankroll = 1000.0
         self.kelly_fraction = 0.5
         self.min_edge = 0.05
-        self.market_confidence = 0.0  # Default to pure model (recommended)
         self.selected_dates = []  # Empty list = All Dates
         
         # Bet type filters
@@ -44,8 +46,7 @@ class InTheMoneyView(QWidget):
         self.calculator = BettingCalculator(
             self.bankroll, 
             self.kelly_fraction, 
-            self.min_edge,
-            self.market_confidence
+            self.min_edge
         )
         
         # Store current recommendations
@@ -283,29 +284,6 @@ class InTheMoneyView(QWidget):
         """)
         row2.addWidget(self.edge_combo)
         
-        row2.addSpacing(20)
-        
-        # Market confidence (blending)
-        conf_label = QLabel("Market Blend:")
-        conf_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
-        conf_label.setToolTip("How much to blend market probability with our model\n0% = Pure model (RECOMMENDED - traditional Kelly)\n30-65% = Blend with market (reduces edge, use only if testing)")
-        row2.addWidget(conf_label)
-        
-        self.market_confidence_combo = QComboBox()
-        self.market_confidence_combo.addItems(["0% (Pure Model - Recommended)", "30% (Slight Blend)", "50% (Balanced)", "65% (Conservative)"])
-        self.market_confidence_combo.setCurrentIndex(0)  # Default to 0% (pure model)
-        self.market_confidence_combo.currentIndexChanged.connect(self.on_settings_changed)
-        self.market_confidence_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {COLORS['bg_secondary']};
-                border: 1px solid {COLORS['border_medium']};
-                border-radius: 4px;
-                padding: 5px;
-                color: {COLORS['text_primary']};
-            }}
-        """)
-        row2.addWidget(self.market_confidence_combo)
-        
         row2.addStretch()
         layout.addLayout(row2)
         
@@ -523,17 +501,11 @@ class InTheMoneyView(QWidget):
         edge_text = self.edge_combo.currentText().replace('%', '')
         self.min_edge = float(edge_text) / 100.0
         
-        # Update market confidence
-        conf_index = self.market_confidence_combo.currentIndex()
-        conf_values = [0.0, 0.30, 0.50, 0.65]
-        self.market_confidence = conf_values[conf_index]
-        
         # Update calculator
         self.calculator = BettingCalculator(
             self.bankroll, 
             self.kelly_fraction, 
-            self.min_edge,
-            self.market_confidence
+            self.min_edge
         )
         
         # Update warning
@@ -616,6 +588,15 @@ class InTheMoneyView(QWidget):
         self.upcoming_fetcher.finished.connect(self.on_refresh_finished)
         self.upcoming_fetcher.error.connect(self.on_refresh_error)
         self.upcoming_fetcher.start()
+    
+    def set_model_type(self, model_type: str):
+        """Update the model type for predictions
+        
+        Args:
+            model_type: 'btn' or 'ranking'
+        """
+        self.model_type = model_type
+        print(f"InTheMoneyView: Model type set to {model_type}")
     
     @Slot(int)
     def on_refresh_finished(self, total_races: int):
@@ -760,6 +741,17 @@ class InTheMoneyView(QWidget):
             # Generate recommendations
             self.all_recommendations = self.analyze_predictions(all_race_predictions)
             
+            # DEBUG: Check what we have
+            print(f"\n{'='*80}")
+            print(f"🔍 DEBUG: Generated {len(self.all_recommendations)} total recommendations")
+            if self.all_recommendations:
+                bet_types = {}
+                for rec in self.all_recommendations:
+                    bt = rec['bet_type']
+                    bet_types[bt] = bet_types.get(bt, 0) + 1
+                print(f"   Breakdown: {bet_types}")
+            print(f"{'='*80}\n")
+            
             # Display recommendations
             self.display_filtered_recommendations()
             
@@ -872,7 +864,8 @@ class InTheMoneyView(QWidget):
             racing_db_path = Path(__file__).parent.parent / "racing_pro.db"
             predictor = ModelPredictor(
                 racing_db_path=str(racing_db_path),
-                race_type=race_type or 'Flat'
+                race_type=race_type or 'Flat',
+                model_type=self.model_type
             )
             
             # Generate predictions for each race
@@ -1012,6 +1005,13 @@ class InTheMoneyView(QWidget):
         """Display recommendations filtered by bet type"""
         self.recommendations_tree.clear()
         
+        # DEBUG
+        print(f"\n{'='*80}")
+        print(f"🖼️  DISPLAY: Starting display with {len(self.all_recommendations)} recommendations")
+        print(f"   Filter states: WIN={self.show_win}, PLACE={self.show_place}, EXACTA={self.show_exacta}")
+        print(f"                  TRIFECTA={self.show_trifecta}, FIRST_FOUR={self.show_first_four}")
+        print(f"{'='*80}\n")
+        
         # Filter recommendations
         filtered = []
         for rec in self.all_recommendations:
@@ -1027,7 +1027,10 @@ class InTheMoneyView(QWidget):
             elif bet_type == 'FIRST FOUR' and self.show_first_four:
                 filtered.append(rec)
         
+        print(f"🖼️  DISPLAY: After filtering -> {len(filtered)} recommendations will be shown")
+        
         if not filtered:
+            print(f"⚠️  DISPLAY: No recommendations after filtering - showing empty state")
             self.show_empty_state()
             return
         
