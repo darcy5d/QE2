@@ -49,14 +49,45 @@ def compute_race_features(race_id: str, db_path: Path) -> tuple:
         
         for runner in runners:
             result = engineer.get_runner_result(race_id, runner['horse_id'])
-            features = engineer.compute_runner_features(runner, race_context, result)
-            all_features.append(features)
+            try:
+                features = engineer.compute_runner_features(runner, race_context, result)
+                all_features.append(features)
+            except TypeError as e:
+                if "'<=' not supported between instances of 'dict' and 'int'" in str(e):
+                    # DIAGNOSTIC: Log the exact values causing the error
+                    import json
+                    logger.error(f"DIAGNOSTIC for {race_id}:")
+                    logger.error(f"  race_context keys: {list(race_context.keys())}")
+                    for k, v in race_context.items():
+                        logger.error(f"    {k}: {type(v).__name__} = {repr(v)[:100]}")
+                    logger.error(f"  runner keys: {list(runner.keys())}")
+                    logger.error(f"  Full error: {e}")
+                    import traceback
+                    logger.error(f"  Traceback:\n{traceback.format_exc()}")
+                raise
             
+            # Compute targets (with distance for speed calculation)
+            distance_f = race_context.get('distance_f') if race_context else None
             targets = engineer.compute_target_variables(
-                race_id, runner['horse_id'], runner['runner_id'], result
+                race_id, runner['horse_id'], runner['runner_id'], result, distance_f
             )
             if targets:
                 all_targets.append(targets)
+        
+        # Post-process: Compute speed_deficit (Model 4 target)
+        if all_targets:
+            winner_speed = None
+            for target in all_targets:
+                if target.get('position') == 1 and target.get('speed') is not None:
+                    winner_speed = target['speed']
+                    break
+            
+            if winner_speed is not None:
+                for target in all_targets:
+                    if target.get('speed') is not None:
+                        target['speed_deficit'] = target['speed'] - winner_speed
+                    else:
+                        target['speed_deficit'] = None
         
         # Compute relative features
         all_features = engineer.compute_relative_features(all_features)
@@ -81,7 +112,11 @@ def compute_race_features(race_id: str, db_path: Path) -> tuple:
         return race_id, all_features, all_targets
         
     except Exception as e:
-        logger.warning(f"Error computing features for {race_id}: {e}")
+        import traceback
+        logger.error(f"EXCEPTION for {race_id}:")
+        logger.error(f"  Type: {type(e).__name__}")
+        logger.error(f"  Message: {repr(e)}")
+        logger.error(f"  Traceback:\n{traceback.format_exc()}")
         engineer.close()
         return race_id, [], []
 

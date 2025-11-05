@@ -45,7 +45,7 @@ DB_PATH = Path(__file__).parent / "racing_pro.db"
 
 # API data start date
 START_DATE = "2023-01-23"
-END_DATE = "2023-04-30"
+END_DATE = "2025-10-25"  # Updated to match original database date range
 
 # ============================================================================
 # DATABASE SCHEMA CREATION
@@ -211,6 +211,23 @@ def create_normalized_schema(conn: sqlite3.Connection) -> None:
         trainer_rtf TEXT,
         comment TEXT,
         spotlight TEXT,
+        age INTEGER,
+        sex TEXT,
+        sex_code TEXT,
+        dob TEXT,
+        sire TEXT,
+        sire_id TEXT,
+        dam TEXT,
+        dam_id TEXT,
+        damsire TEXT,
+        damsire_id TEXT,
+        region TEXT,
+        breeder TEXT,
+        colour TEXT,
+        trainer_location TEXT,
+        trainer_14d_runs INTEGER,
+        trainer_14d_wins INTEGER,
+        trainer_14d_percent REAL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (race_id) REFERENCES races(race_id) ON DELETE CASCADE,
         FOREIGN KEY (horse_id) REFERENCES horses(horse_id) ON DELETE CASCADE,
@@ -604,14 +621,18 @@ def insert_runner(cursor: sqlite3.Cursor, race_id: str, runner_data: Dict[str, A
         runner_data.get('owner')
     )
     
-    # Insert runner
+    # Insert runner (with all demographic and breeding fields)
     cursor.execute('''
         INSERT INTO runners (
             race_id, horse_id, trainer_id, jockey_id, owner_id,
             number, draw, headgear, headgear_run, wind_surgery, wind_surgery_run,
             lbs, ofr, rpr, ts, silk_url, last_run, form, trainer_rtf,
-            comment, spotlight
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            comment, spotlight,
+            age, sex, sex_code, dob,
+            sire, sire_id, dam, dam_id, damsire, damsire_id,
+            region, breeder, colour, trainer_location,
+            trainer_14d_runs, trainer_14d_wins, trainer_14d_percent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         race_id, horse_id, trainer_id, jockey_id, owner_id,
         runner_data.get('number'), runner_data.get('draw'),
@@ -621,7 +642,17 @@ def insert_runner(cursor: sqlite3.Cursor, race_id: str, runner_data: Dict[str, A
         runner_data.get('rpr'), runner_data.get('ts'),
         runner_data.get('silk_url'), runner_data.get('last_run'),
         runner_data.get('form'), runner_data.get('trainer_rtf'),
-        runner_data.get('comment'), runner_data.get('spotlight')
+        runner_data.get('comment'), runner_data.get('spotlight'),
+        # Add demographic and breeding fields
+        runner_data.get('age'), runner_data.get('sex'), runner_data.get('sex_code'),
+        runner_data.get('dob'),
+        runner_data.get('sire'), runner_data.get('sire_id'),
+        runner_data.get('dam'), runner_data.get('dam_id'),
+        runner_data.get('damsire'), runner_data.get('damsire_id'),
+        runner_data.get('region'), runner_data.get('breeder'),
+        runner_data.get('colour'), runner_data.get('trainer_location'),
+        runner_data.get('trainer_14d_runs'), runner_data.get('trainer_14d_wins'),
+        runner_data.get('trainer_14d_percent')
     ))
     
     runner_id = cursor.lastrowid

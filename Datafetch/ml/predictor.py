@@ -31,7 +31,8 @@ def dict_factory(cursor, row):
 class ModelPredictor:
     """Generate predictions for upcoming races using trained ML model"""
     
-    def __init__(self, model_path: str = None, racing_db_path: str = None, race_type: str = 'Flat'):
+    def __init__(self, model_path: str = None, racing_db_path: str = None, race_type: str = 'Flat', 
+                 model_type: str = 'ranking'):
         """
         Initialize predictor with trained model
         
@@ -39,8 +40,10 @@ class ModelPredictor:
             model_path: Path to trained model JSON file (optional, auto-generates from race_type if not provided)
             racing_db_path: Path to racing_pro.db with historical data
             race_type: Type of races to predict ('Flat', 'Hurdle', 'Chase')
+            model_type: Type of model ('ranking', 'btn', 'speed_abs', 'speed_rel')
         """
         self.race_type = race_type
+        self.model_type = model_type
         self.model_dir = Path(__file__).parent / "models"
         
         # Auto-generate model path based on race type if not provided
@@ -48,7 +51,15 @@ class ModelPredictor:
             self.model_path = Path(model_path)
         else:
             race_type_lower = race_type.lower()
-            self.model_path = self.model_dir / f"xgboost_{race_type_lower}.json"
+            # Select model file based on model_type
+            if model_type == 'btn':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_btn.json"
+            elif model_type == 'speed_abs':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_speed_abs.json"
+            elif model_type == 'speed_rel':
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}_speed_rel.json"
+            else:  # default to ranking
+                self.model_path = self.model_dir / f"xgboost_{race_type_lower}.json"
         
         # Database paths
         if racing_db_path:
@@ -60,10 +71,12 @@ class ModelPredictor:
         self.feature_columns = None
         self.feature_importance = None
         self.feature_engineer = None
+        self.calibration_params = None
         self._upcoming_db_connected = False
         
         self._load_model()
         self._load_feature_metadata()
+        self._load_calibration_params()
         # Note: feature_engineer will be initialized in predict_race with upcoming_db_path
     
     def _load_model(self):
@@ -110,6 +123,26 @@ class ModelPredictor:
             print("⚠ Feature importance file not found, will use default importance")
             self.feature_importance = {col: 1.0/len(self.feature_columns) for col in self.feature_columns}
     
+    def _load_calibration_params(self):
+        """Load calibration parameters if available"""
+        race_type_lower = self.race_type.lower()
+        calibration_path = self.model_dir / f"calibration_params_{race_type_lower}.json"
+        
+        if calibration_path.exists():
+            with open(calibration_path, 'r') as f:
+                self.calibration_params = json.load(f)
+            
+            temperature = self.calibration_params.get('temperature', 1.0)
+            print(f"✓ Loaded calibration parameters (temperature: {temperature:.4f})")
+            
+            if temperature > 1.5:
+                print("  → Applying confidence reduction to predictions")
+            elif temperature < 0.7:
+                print("  → Applying confidence boost to predictions")
+        else:
+            print("⚠ No calibration parameters found - using uncalibrated probabilities")
+            print(f"  Train calibration using: python train_calibration.py --race-type {self.race_type}")
+    
     def _init_feature_engineer(self, upcoming_db_path: str = None):
         """Initialize feature engineer for generating features"""
         self.feature_engineer = FeatureEngineer(
@@ -117,6 +150,38 @@ class ModelPredictor:
             upcoming_db_path=upcoming_db_path
         )
         self.feature_engineer.connect()
+    
+    def _is_scratched(self, runner: Dict) -> bool:
+        """
+        Detect if a runner is scratched/non-runner
+        
+        Scratched indicators:
+        - runner_number is 'NR' or None
+        - jockey_name contains 'NON-RUNNER' or 'NON RUNNER'
+        - jockey_name is empty/None with runner_number = 'NR'
+        
+        Args:
+            runner: Runner dictionary with number and jockey_name
+            
+        Returns:
+            True if horse is scratched, False otherwise
+        """
+        runner_number = str(runner.get('number', '')).strip().upper()
+        jockey_name = str(runner.get('jockey_name', '')).strip().upper()
+        
+        # Check runner number
+        if runner_number in ['NR', 'N/R', '']:
+            return True
+        
+        # Check jockey name
+        if 'NON-RUNNER' in jockey_name or 'NON RUNNER' in jockey_name:
+            return True
+        
+        # Check for empty jockey with no valid number
+        if not jockey_name and not runner_number.isdigit():
+            return True
+        
+        return False
     
     def predict_race(self, race_id: str, upcoming_db_path: str) -> Dict:
         """
@@ -150,6 +215,30 @@ class ModelPredictor:
         
         print(f"\n🏇 Processing race: {race_data['race_info'].get('course')} {race_data['race_info'].get('time')}")
         print(f"   Total runners in race: {len(race_data['runners'])}")
+        
+        # Filter out scratched horses BEFORE any calculations
+        original_count = len(race_data['runners'])
+        active_runners = [r for r in race_data['runners'] if not self._is_scratched(r)]
+        scratched_count = original_count - len(active_runners)
+        
+        if scratched_count > 0:
+            scratched_names = [r.get('horse_name', 'Unknown') 
+                               for r in race_data['runners'] 
+                               if self._is_scratched(r)]
+            print(f"   ⚠️  {scratched_count} scratched horse(s): {', '.join(scratched_names)}")
+            print(f"   Active field size: {len(active_runners)}")
+            
+            # Update race_data with filtered runners and scratch info
+            race_data['runners'] = active_runners
+            race_data['race_info']['scratched_count'] = scratched_count
+            race_data['race_info']['scratched_horses'] = scratched_names
+        else:
+            race_data['race_info']['scratched_count'] = 0
+            race_data['race_info']['scratched_horses'] = []
+        
+        if len(active_runners) == 0:
+            print(f"   ❌ All horses scratched - no predictions possible!")
+            return None
         
         # PASS 1: Collect available RPR/TS values to calculate field statistics
         available_rprs = []
@@ -589,24 +678,50 @@ class ModelPredictor:
     
     def _scores_to_probabilities(self, scores: np.ndarray) -> np.ndarray:
         """
-        Convert ranking scores to probabilities using softmax
+        Convert model scores to probabilities using appropriate method for model type
         
-        Ranking model outputs relative scores (higher = better).
-        Softmax converts these to valid probabilities that sum to 1.0.
-        
-        This is the mathematically correct way to get probabilities from
-        a ranking model - no manual normalization needed!
+        Different model types require different probability conversions:
+        - ranking: Standard softmax with optional temperature scaling
+        - btn: Softmax on negative scores (smaller BTN = better)
+        - speed_abs: Softmax on raw scores (higher speed = better)
+        - speed_rel: Softmax on raw scores (higher/closer to 0 = better)
         
         Args:
-            scores: Ranking scores from model (higher = better)
+            scores: Raw model predictions
             
         Returns:
             Probabilities that sum to 1.0
         """
-        # Softmax: exp(score) / sum(exp(scores))
-        # Subtract max for numerical stability (prevents overflow)
-        exp_scores = np.exp(scores - np.max(scores))
-        probabilities = exp_scores / exp_scores.sum()
+        # Get temperature for ranking model
+        temperature = 1.0
+        if self.model_type == 'ranking' and self.calibration_params:
+            temperature = self.calibration_params.get('temperature', 1.0)
+        
+        # Convert scores based on model type
+        if self.model_type == 'btn':
+            # BTN model: smaller is better (0=winner, higher=further behind)
+            # Apply softmax to negative values
+            exp_scores = np.exp(-scores - np.min(-scores))
+            probabilities = exp_scores / exp_scores.sum()
+        
+        elif self.model_type == 'speed_abs':
+            # Speed model: higher is better (faster = more likely to win)
+            # Standard softmax
+            exp_scores = np.exp(scores - np.max(scores))
+            probabilities = exp_scores / exp_scores.sum()
+        
+        elif self.model_type == 'speed_rel':
+            # Relative speed: values closer to 0 are better (0=winner, negative=slower)
+            # Higher values (closer to 0) are better
+            # Standard softmax works here
+            exp_scores = np.exp(scores - np.max(scores))
+            probabilities = exp_scores / exp_scores.sum()
+        
+        else:  # ranking (default)
+            # Ranking model with optional temperature scaling
+            scaled_scores = scores / temperature
+            exp_scores = np.exp(scaled_scores - np.max(scaled_scores))
+            probabilities = exp_scores / exp_scores.sum()
         
         return probabilities
     

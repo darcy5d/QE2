@@ -1,0 +1,11 @@
+{
+  "rmse": 0.002172546347513606,
+  "mae": 0.001656850417088815,
+  "r2": 0.7257783311297072,
+  "top_pick_accuracy": 20.73213657162971,
+  "top_3_hit_rate": 51.31810193321616,
+  "mrr": 0.4216999723334095,
+  "model_type": "speed_absolute_regression",
+  "target": "speed_furlongs_per_second",
+  "trained_at": "2025-11-06T05:58:48.979900"
+}

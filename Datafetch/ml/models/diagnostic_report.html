@@ -1,0 +1,146 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Model Diagnostics Report - Flat Racing</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-good {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        .status-bad {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .metric {
+            display: inline-block;
+            background: #ecf0f1;
+            padding: 10px 20px;
+            margin: 10px 10px 10px 0;
+            border-radius: 5px;
+        }
+        .metric-label {
+            font-weight: bold;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .metric-value {
+            font-size: 1.5em;
+            color: #2c3e50;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .timestamp {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Model Diagnostics Report</h1>
+    <div class="timestamp">Generated: 2025-10-26 15:32:32</div>
+    
+    <div class="section">
+        <h2>📊 Model Information</h2>
+        <div class="metric">
+            <div class="metric-label">Race Type</div>
+            <div class="metric-value">Flat</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Model File</div>
+            <div class="metric-value">xgboost_flat.json</div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🎯 Feature Importance Analysis</h2>
+        <p>Identifies most important features and detects potential data leakage.</p>
+
+        <p class="status-warning">⚠️ Feature importance visualization not generated</p>
+
+    </div>
+    
+    <div class="section">
+        <h2>📈 Calibration Analysis</h2>
+        <p>Evaluates how well predicted probabilities match actual outcomes.</p>
+
+        <p class="status-warning">⚠️ Calibration visualizations not generated</p>
+
+    </div>
+    
+    <div class="section">
+        <h2>🎛️ Calibration Parameters</h2>
+
+        <p class="status-warning">⚠️ No calibration parameters trained yet</p>
+        <p>Run: <code>python train_calibration.py --race-type {race_type}</code></p>
+
+    </div>
+    
+    <div class="section">
+        <h2>📋 Recommendations</h2>
+        <ul>
+
+            <li><strong>Monitor performance:</strong> Track ROI and win rates on real bets to validate calibration effectiveness.</li>
+            <li><strong>Retrain periodically:</strong> Re-run diagnostics after adding significant new training data.</li>
+            <li><strong>Check feature importance:</strong> Ensure no suspicious features (odds-based) dominate the model.</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>🔄 Next Steps</h2>
+        <ol>
+            <li>Review feature importance to ensure no data leakage</li>
+            <li>Verify training data size and quality is sufficient</li>
+            <li>Check calibration curves for systematic bias</li>
+            <li>Test calibrated predictions on upcoming races</li>
+            <li>Monitor real-world betting performance</li>
+        </ol>
+    </div>
+    
+    <div class="timestamp">
+        <p>All diagnostic outputs are saved in: <code>Datafetch/ml/models/</code></p>
+    </div>
+</body>
+</html>

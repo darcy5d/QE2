@@ -20,7 +20,8 @@ class PredictionWorker(QThread):
     predictions_ready = Signal(list)  # List of prediction dicts
     error_occurred = Signal(str)      # Error message
     
-    def __init__(self, race_ids: list, upcoming_db_path: str, racing_db_path: str = None):
+    def __init__(self, race_ids: list, upcoming_db_path: str, racing_db_path: str = None, 
+                 model_type: str = 'btn'):
         """
         Initialize prediction worker
         
@@ -28,19 +29,24 @@ class PredictionWorker(QThread):
             race_ids: List of race IDs to generate predictions for
             upcoming_db_path: Path to upcoming_races.db
             racing_db_path: Path to racing_pro.db (optional)
+            model_type: Type of model to use ('btn' or 'ranking')
         """
         super().__init__()
         self.race_ids = race_ids
         self.upcoming_db_path = upcoming_db_path
         self.racing_db_path = racing_db_path
+        self.model_type = model_type
         self.predictor = None
     
     def run(self):
         """Run prediction generation in background"""
         try:
             # Initialize predictor
-            print("Initializing ML predictor...")
-            self.predictor = ModelPredictor(racing_db_path=self.racing_db_path)
+            print(f"Initializing ML predictor with model type: {self.model_type}...")
+            self.predictor = ModelPredictor(
+                racing_db_path=self.racing_db_path,
+                model_type=self.model_type
+            )
             
             # Generate predictions for each race
             all_predictions = []

@@ -13,6 +13,16 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .form_parser import FormParser
+from .speed_features import SpeedFeatureCalculator
+from .btn_features import BTNFeatureCalculator, calculate_field_btn_stats
+from .quality_features import calculate_all_quality_features
+from .weather_features import calculate_all_weather_features
+from .weight_features import calculate_all_weight_features
+from .market_position_features import calculate_market_position
+from .class_features import calculate_class_features
+from .course_specialist_features import calculate_course_specialist_features
+from .distance_features import calculate_distance_features
+from .trainer_hotstreak_features import calculate_trainer_hotstreak
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +58,10 @@ class FeatureEngineer:
         self.conn = None
         self.upcoming_conn = None
         self.form_parser = FormParser()
+        
+        # Initialize new feature calculators
+        self.speed_calc = SpeedFeatureCalculator()
+        self.btn_calc = BTNFeatureCalculator()
         
     def connect(self):
         """Connect to database(s)"""
@@ -150,22 +164,30 @@ class FeatureEngineer:
             except (ValueError, TypeError):
                 pass
         
+        # CRITICAL FIX: Ensure NO dict values are returned
+        # Some database values might be nested dicts which break comparisons
+        def safe_value(val):
+            """Return None if value is a dict, otherwise return the value"""
+            return None if isinstance(val, dict) else val
+        
         return {
-            'race_id': race_id,
-            'course': race['course'],
-            'course_id': race['course_id'],
-            'distance_f': distance_f_val,
-            'going': race['going'],
-            'going_encoded': going_encoded,
-            'surface': race['surface'],
-            'surface_encoded': surface_encoded,
-            'race_class': race['race_class'],
-            'race_class_encoded': race_class_num,
-            'race_type': race['race_type'],
-            'race_type_encoded': race_type_encoded,
-            'prize_money': prize_money,
-            'date': race['date'],
-            'region': race['region']
+            'race_id': safe_value(race_id),
+            'course': safe_value(race['course']),
+            'course_id': safe_value(race['course_id']),
+            'distance_f': distance_f_val,  # Already validated
+            'going': safe_value(race['going']),
+            'going_encoded': going_encoded,  # Already int
+            'surface': safe_value(race['surface']),
+            'surface_encoded': surface_encoded,  # Already int
+            'race_class': safe_value(race['race_class']),
+            'race_class_encoded': race_class_num,  # Already int/None
+            'race_type': safe_value(race['race_type']),
+            'race_type_encoded': race_type_encoded,  # Already int
+            'prize_money': prize_money,  # Already float
+            'date': safe_value(race['date']),
+            'region': safe_value(race['region']),
+            'field_size': 10,  # Add missing field_size with default
+            'type': safe_value(race['race_type'])  # Add 'type' alias for backwards compat
         }
     
     def get_runners_for_race(self, race_id: str) -> List[Dict]:
@@ -352,6 +374,15 @@ class FeatureEngineer:
     def compute_course_specific_stats(self, entity_id: str, course: str, 
                                      entity_type: str = 'horse', race_date: str = None) -> Dict:
         """Get win rate at specific course for horse/trainer/jockey BEFORE given race date"""
+        # DEFENSIVE: Handle dict values
+        if isinstance(course, dict):
+            course = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
+        if not course:
+            return {}
+        
         cursor = self.conn.cursor()
         
         # Build query based on entity type
@@ -438,6 +469,12 @@ class FeatureEngineer:
     
     def compute_going_specific_stats(self, horse_id: str, going: str, race_date: str = None) -> Dict:
         """Get horse performance on similar going BEFORE given race date"""
+        # DEFENSIVE: Handle dict values
+        if isinstance(going, dict):
+            going = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
         if not going:
             return {'going_runs': 0, 'going_wins': 0, 'going_win_rate': 0.0}
         
@@ -471,25 +508,10 @@ class FeatureEngineer:
             'going_win_rate': wins / runs if runs > 0 else 0.0
         }
     
-    def get_opening_odds(self, runner_id: int) -> Optional[float]:
-        """Get opening odds for runner from runner_odds table"""
-        cursor = self.conn.cursor()
-        
-        cursor.execute("""
-            SELECT odds_decimal
-            FROM runner_odds
-            WHERE runner_id = ?
-            ORDER BY created_at ASC
-            LIMIT 1
-        """, (runner_id,))
-        
-        row = cursor.fetchone()
-        if row and row['odds_decimal']:
-            try:
-                return float(row['odds_decimal'])
-            except (ValueError, TypeError):
-                return None
-        return None
+    # REMOVED: get_opening_odds - part of odds leakage removal
+    # def get_opening_odds(self, runner_id: int) -> Optional[float]:
+    #     """Get opening odds for runner from runner_odds table"""
+    #     # ODDS FEATURE REMOVED TO ELIMINATE DATA LEAKAGE
     
     def compute_pace_features(self, horse_id: str, race_date: str = None) -> Dict:
         """
@@ -580,77 +602,34 @@ class FeatureEngineer:
             return int(np.median(style_scores))
         return 3
     
-    def compute_odds_features(self, runner_id: int) -> Dict:
+    # REMOVED: compute_odds_features - part of odds leakage removal  
+    # This method created 36% of model importance and caused circular logic
+    # def compute_odds_features(self, runner_id: int) -> Dict:
+    #     """ODDS FEATURES REMOVED TO ELIMINATE DATA LEAKAGE"""
+    #     # Odds features were: odds_implied_prob, odds_is_favorite, odds_favorite_rank,
+    #     # odds_decimal, odds_bookmaker_count, odds_spread, odds_market_stability
+    #     # These caused the model to learn to follow the market instead of beat it
+    #     return {}
+    
+    def get_past_races_for_features(self, horse_id: str, race_date: str, limit: int = 10) -> List[Dict]:
         """
-        Compute 7 standalone odds features
+        Get past race data needed for speed, BTN, class, and other new features
         
-        These complement (not replace) RPR/TS features
+        Returns list of past races with time, distance, BTN, OVR_BTN, going, weather, weight, class, etc.
         """
-        # Use upcoming_conn if available (for predictions), else use main conn (for training)
-        conn = self.upcoming_conn if self.upcoming_conn else self.conn
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT avg_decimal, median_decimal, min_decimal, max_decimal,
-                   bookmaker_count, implied_probability, is_favorite, favorite_rank
-            FROM runner_market_odds WHERE runner_id = ?
-        ''', (runner_id,))
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT 
+                r.time, r.btn, r.ovr_btn, r.position, r.weight_lbs, r.rpr,
+                ra.distance_f, ra.course, ra.going, ra.weather, ra.field_size, ra.date, ra.race_class as class
+            FROM results r
+            JOIN races ra ON r.race_id = ra.race_id
+            WHERE r.horse_id = ? AND ra.date < ?
+            ORDER BY ra.date DESC
+            LIMIT ?
+        """, (horse_id, race_date, limit))
         
-        row = cursor.fetchone()
-        if not row:
-            # Use field averages if available (smart defaults)
-            field_odds_avg = getattr(self, '_current_field_odds_avg', {'count': 0})
-            if field_odds_avg.get('count', 0) > 0:
-                logger.debug(f"Using field average odds for runner_id={runner_id} (no individual odds)")
-                return {
-                    'odds_implied_prob': field_odds_avg.get('avg_implied_prob'),
-                    'odds_is_favorite': 0,
-                    'odds_favorite_rank': field_odds_avg.get('avg_rank', 8),
-                    'odds_decimal': field_odds_avg.get('avg_decimal'),
-                    'odds_bookmaker_count': field_odds_avg.get('avg_bookmaker_count', 0),
-                    'odds_spread': field_odds_avg.get('avg_spread', 2.0),
-                    'odds_market_stability': 0.8  # Reasonable default
-                }
-            
-            # No odds at all - use None defaults
-            if self.upcoming_conn:
-                logger.debug(f"No odds data found for runner_id={runner_id} in upcoming database")
-            return {
-                'odds_implied_prob': None,
-                'odds_is_favorite': 0,
-                'odds_favorite_rank': 99,
-                'odds_decimal': None,
-                'odds_bookmaker_count': 0,
-                'odds_spread': None,
-                'odds_market_stability': None
-            }
-        
-        avg_dec = row.get('avg_decimal')
-        med_dec = row.get('median_decimal')
-        min_dec = row.get('min_decimal')
-        max_dec = row.get('max_decimal')
-        bk_count = row.get('bookmaker_count')
-        impl_prob = row.get('implied_probability')
-        is_fav = row.get('is_favorite')
-        fav_rank = row.get('favorite_rank')
-        
-        # Calculate spread and stability
-        odds_spread = None
-        if max_dec is not None and min_dec is not None:
-            odds_spread = max_dec - min_dec
-        
-        odds_stability = None
-        if max_dec is not None and min_dec is not None and max_dec > 0:
-            odds_stability = min_dec / max_dec
-        
-        return {
-            'odds_implied_prob': impl_prob,           # Market's win probability
-            'odds_is_favorite': is_fav or 0,          # Binary: is this the favorite?
-            'odds_favorite_rank': fav_rank or 99,     # 1=fav, 2=2nd fav, etc.
-            'odds_decimal': avg_dec,                  # Average decimal odds
-            'odds_bookmaker_count': bk_count or 0,    # Market liquidity
-            'odds_spread': odds_spread,               # Price disagreement
-            'odds_market_stability': odds_stability   # Consensus level
-        }
+        return [dict(row) for row in cursor.fetchall()]
     
     def compute_demographic_features(self, runner_data: Dict) -> Dict:
         """
@@ -714,6 +693,23 @@ class FeatureEngineer:
         """
         Compute draw bias features from historical data at this course/distance
         """
+        # DEFENSIVE: Handle dict/invalid values
+        if isinstance(course, dict):
+            course = None
+        if isinstance(distance_f, dict):
+            distance_f = None
+        if isinstance(draw, dict):
+            draw = None
+        if isinstance(race_date, dict):
+            race_date = None
+        
+        # Convert distance_f to float safely
+        if distance_f is not None:
+            try:
+                distance_f = float(distance_f)
+            except (ValueError, TypeError):
+                distance_f = None
+        
         if not draw or not course or not distance_f:
             return {
                 'course_distance_draw_bias': None,
@@ -798,10 +794,43 @@ class FeatureEngineer:
         
         Returns dict with ~50-100 features ready for ML
         """
+        # === SAFE EXTRACTION OF RACE_CONTEXT VALUES ===
+        # Some values in race_context might be nested dicts, which breaks comparisons
+        # Extract and validate all values at the start
+        
+        def safe_extract(value, convert_to=None):
+            """Safely extract value, handling dicts and conversion"""
+            if value is None or isinstance(value, dict):
+                return None
+            if convert_to == float:
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+            if convert_to == int:
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return None
+            return value
+        
+        # Extract ALL race_context values safely
+        race_date = safe_extract(race_context.get('date'))
+        race_id_val = safe_extract(race_context.get('race_id'))
+        race_course = safe_extract(race_context.get('course'))
+        race_distance_f = safe_extract(race_context.get('distance_f'), float)
+        race_going = safe_extract(race_context.get('going'))
+        race_going_encoded = safe_extract(race_context.get('going_encoded'), int)
+        race_surface_encoded = safe_extract(race_context.get('surface_encoded'), int)
+        race_class = safe_extract(race_context.get('race_class'))
+        race_class_encoded = safe_extract(race_context.get('race_class_encoded'), int)
+        race_prize_money = safe_extract(race_context.get('prize_money'), float)
+        race_field_size = safe_extract(race_context.get('field_size'), int)
+        race_type = safe_extract(race_context.get('type'))
+        
         horse_id = runner['horse_id']
         trainer_id = runner['trainer_id']
         jockey_id = runner['jockey_id']
-        race_date = race_context['date']
         
         # Store field_odds_avg for use in compute_odds_features
         if field_odds_avg is None:
@@ -809,7 +838,7 @@ class FeatureEngineer:
         self._current_field_odds_avg = field_odds_avg
         
         features = {
-            'race_id': race_context['race_id'],
+            'race_id': race_id_val,
             'runner_id': runner['runner_id'],
             'horse_id': horse_id
         }
@@ -839,20 +868,20 @@ class FeatureEngineer:
         
         # Course-specific performance (time-aware to prevent data leakage)
         course_stats = self.compute_course_specific_stats(
-            horse_id, race_context['course'], 'horse', race_date
+            horse_id, race_course, 'horse', race_date
         )
         features['horse_course_wins'] = course_stats.get('course_wins', 0)
         features['horse_course_win_rate'] = course_stats.get('course_win_rate', 0.0)
         
         # Distance-specific performance (time-aware to prevent data leakage)
         distance_stats = self.compute_distance_specific_stats(
-            horse_id, race_context['distance_f'], race_date
+            horse_id, race_distance_f, race_date
         )
         features['horse_distance_win_rate'] = distance_stats.get('distance_win_rate', 0.0)
         
         # Going-specific performance (time-aware to prevent data leakage)
         going_stats = self.compute_going_specific_stats(
-            horse_id, race_context['going'], race_date
+            horse_id, race_going, race_date
         )
         features['horse_going_win_rate'] = going_stats.get('going_win_rate', 0.0)
         
@@ -863,9 +892,89 @@ class FeatureEngineer:
         features['speed_improving'] = pace_features.get('speed_improving', 0)
         features['typical_running_style'] = pace_features.get('typical_running_style', 3)
         
-        # === ODDS FEATURES (NEW) ===
-        odds_features = self.compute_odds_features(runner['runner_id'])
-        features.update(odds_features)
+        # === ODDS FEATURES REMOVED (DATA LEAKAGE) ===
+        # Removed compute_odds_features() - 36% model importance from market data
+        # Replaced with fundamental features: speed, BTN, quality, weather, weight
+        
+        # === NEW FUNDAMENTAL FEATURES ===
+        # Get past race data for new feature calculations
+        past_races = self.get_past_races_for_features(horse_id, race_date, limit=10)
+        
+        # SPEED FEATURES (6 features)
+        speed_features = self.speed_calc.calculate_all_speed_features(
+            past_races, race_course, race_distance_f
+        )
+        features.update(speed_features)
+        
+        # BTN FEATURES (12 features) - field-relative features calculated later
+        btn_features = self.btn_calc.calculate_all_btn_features(
+            past_races, race_field_size or 10
+        )
+        features.update(btn_features)
+        
+        # WEATHER FEATURES (4 features)
+        weather_features = calculate_all_weather_features(
+            past_races,
+            '',  # rail_movements not in database, use empty string
+            features.get('draw', 5),
+            race_field_size or 10,
+            race_going or 'Good'
+        )
+        features.update(weather_features)
+        
+        # WEIGHT FEATURES (2 features)
+        weight_features = calculate_all_weight_features(
+            past_races,
+            features.get('rpr', 0),
+            features.get('weight_lbs', 126),
+            race_type or 'Flat'
+        )
+        features.update(weight_features)
+        
+        # === NEW DISCRIMINATING FEATURES (18 features) ===
+        
+        # MARKET POSITION (1 feature) - Categorical odds anchor
+        # Extract the actual average odds value from the dict
+        market_odds_value = None
+        if isinstance(field_odds_avg, dict):
+            market_odds_value = field_odds_avg.get('avg')
+        market_position_tier = calculate_market_position(market_odds_value)
+        features['market_position_tier'] = market_position_tier
+        
+        # CLASS MOVEMENT FEATURES (4 features)
+        # Use safe variable already extracted at top of function
+        class_features = calculate_class_features(
+            past_races,
+            race_class
+        )
+        features.update(class_features)
+        
+        # COURSE SPECIALIST FEATURES (5 features)
+        # Use safe variable already extracted at top of function
+        course_features = calculate_course_specialist_features(
+            past_races,
+            race_course
+        )
+        features.update(course_features)
+        
+        # DISTANCE OPTIMIZATION FEATURES (4 features)
+        # Use safe variable already extracted at top of function
+        distance_features = calculate_distance_features(
+            past_races,
+            race_distance_f
+        )
+        features.update(distance_features)
+        
+        # TRAINER HOT STREAK FEATURES (4 features)
+        # Use safe variable already extracted at top of function
+        trainer_hotstreak = calculate_trainer_hotstreak(
+            trainer_id,
+            race_date,
+            self.conn
+        )
+        features.update(trainer_hotstreak)
+        
+        # QUALITY FEATURES removed - were unimplemented placeholders always set to None
         
         # === DEMOGRAPHIC FEATURES (NEW) ===
         demographic_features = self.compute_demographic_features(runner)
@@ -882,7 +991,7 @@ class FeatureEngineer:
         
         # Trainer course specialization (time-aware to prevent data leakage)
         trainer_course_stats = self.compute_course_specific_stats(
-            trainer_id, race_context['course'], 'trainer', race_date
+            trainer_id, race_course, 'trainer', race_date
         )
         features['trainer_course_win_rate'] = trainer_course_stats.get('course_win_rate', 0.0)
         
@@ -890,9 +999,9 @@ class FeatureEngineer:
         trainer_distance_spec = trainer_stats_90d.get('distance_spec', {})
         # Find matching distance band
         features['trainer_distance_win_rate'] = 0.0
-        if race_context['distance_f']:
+        if race_distance_f:
             for band_name, band_stats in trainer_distance_spec.items():
-                if self._distance_in_band(race_context['distance_f'], band_name):
+                if self._distance_in_band(race_distance_f, band_name):
                     features['trainer_distance_win_rate'] = band_stats.get('win_rate', 0.0)
                     break
         
@@ -911,7 +1020,7 @@ class FeatureEngineer:
         
         # Jockey course performance (time-aware to prevent data leakage)
         jockey_course_stats = self.compute_course_specific_stats(
-            jockey_id, race_context['course'], 'jockey', race_date
+            jockey_id, race_course, 'jockey', race_date
         )
         features['jockey_course_win_rate'] = jockey_course_stats.get('course_win_rate', 0.0)
         
@@ -922,12 +1031,12 @@ class FeatureEngineer:
         features['combo_runs'] = combo_stats.get('runs', 0)
         
         # === RACE CONTEXT FEATURES ===
-        features['distance_f'] = race_context['distance_f']
-        features['going_encoded'] = race_context['going_encoded']
-        features['surface_encoded'] = race_context['surface_encoded']
-        features['race_class'] = race_context.get('race_class')
-        features['race_class_encoded'] = race_context['race_class_encoded']
-        features['prize_money'] = race_context['prize_money']
+        features['distance_f'] = race_distance_f
+        features['going_encoded'] = race_going_encoded
+        features['surface_encoded'] = race_surface_encoded
+        features['race_class'] = race_class
+        features['race_class_encoded'] = race_class_encoded
+        features['prize_money'] = race_prize_money
         
         # === RUNNER-SPECIFIC FEATURES ===
         features['runner_number'] = self._to_int(runner.get('number'))
@@ -940,13 +1049,9 @@ class FeatureEngineer:
         # Headgear encoding (0 = none, 1 = has headgear)
         features['headgear_encoded'] = 1 if runner.get('headgear') else 0
         
-        # === MARKET FEATURES (PLACEHOLDERS) ===
-        # These will be populated after computing relative features
-        features['opening_odds'] = None
-        features['final_odds'] = None
-        features['odds_movement'] = None
-        features['odds_rank'] = None
-        features['market_rank'] = None
+        # === MARKET FEATURES REMOVED (DATA LEAKAGE) ===
+        # Removed: opening_odds, final_odds, odds_movement, odds_rank, market_rank
+        # These created circular logic where model learned to follow market
         
         # === RELATIVE FEATURES (PLACEHOLDERS) ===
         # These are computed after we have all runners
@@ -1017,8 +1122,57 @@ class FeatureEngineer:
         except (ValueError, TypeError):
             return 0.0
     
+    def _parse_time_to_seconds(self, time_str: str) -> Optional[float]:
+        """
+        Convert time string 'minutes:seconds.centiseconds' to total seconds
+        
+        Examples:
+            '4:2.91' -> 242.91 seconds
+            '1:15.08' -> 75.08 seconds
+            '5:23.46' -> 323.46 seconds
+        """
+        if not time_str:
+            return None
+        try:
+            parts = time_str.split(':')
+            if len(parts) != 2:
+                return None
+            minutes = int(parts[0])
+            seconds = float(parts[1])
+            return minutes * 60 + seconds
+        except (ValueError, TypeError, AttributeError):
+            return None
+    
+    def _calculate_speed(self, distance_f: float, time_seconds: float) -> Optional[float]:
+        """
+        Calculate speed in furlongs per second
+        
+        Args:
+            distance_f: Distance in furlongs
+            time_seconds: Finishing time in seconds
+            
+        Returns:
+            Speed in furlongs/second (higher = faster)
+        """
+        if not distance_f or not time_seconds or time_seconds <= 0:
+            return None
+        try:
+            return float(distance_f) / float(time_seconds)
+        except (ValueError, TypeError, ZeroDivisionError):
+            return None
+    
     def _distance_in_band(self, distance_f: float, band_name: str) -> bool:
         """Check if distance falls within a band"""
+        # Handle None or dict values safely
+        if distance_f is None or isinstance(distance_f, dict):
+            return False
+        
+        # Convert to float safely
+        try:
+            distance_f = float(distance_f)
+        except (ValueError, TypeError):
+            return False
+        
         bands = {
             '5-6f': (5, 6),
             '7-8f': (7, 8),
@@ -1133,6 +1287,17 @@ class FeatureEngineer:
             features['top_3_rpr_avg'] = top_3_rpr_avg
             features['pace_pressure_likely'] = pace_pressure
         
+        # === BTN FIELD-LEVEL STATISTICS (NEW) ===
+        # Calculate field-level BTN comparisons
+        from .btn_features import calculate_field_btn_stats
+        btn_relative = calculate_field_btn_stats(all_runner_features)
+        
+        # Update each horse's features with relative BTN metrics
+        for features in all_runner_features:
+            horse_id = features.get('horse_id')
+            if horse_id and horse_id in btn_relative:
+                features.update(btn_relative[horse_id])
+        
         # === RANKINGS ===
         # RPR rank
         if ratings:
@@ -1195,16 +1360,9 @@ class FeatureEngineer:
             features['jockey_rating'] = jockey_wr - avg_jockey_wr
             features['trainer_rating'] = trainer_wr - avg_trainer_wr
         
-        # === MARKET RANKS (based on OFR as proxy) ===
-        sorted_by_rating = sorted(
-            all_runner_features, 
-            key=lambda x: x['ofr'] if x['ofr'] is not None else -999,
-            reverse=True
-        )
-        
-        for rank, features in enumerate(sorted_by_rating, 1):
-            features['odds_rank'] = rank
-            features['market_rank'] = rank
+        # === MARKET RANKS REMOVED (ODDS FEATURES) ===
+        # Removed odds_rank and market_rank (data leakage from odds features)
+        # These were based on market odds, which we no longer use
         
         # === DRAW BIAS FEATURES ===
         # Get race context from first runner (all have same race)
@@ -1231,14 +1389,44 @@ class FeatureEngineer:
         return all_runner_features
     
     def compute_target_variables(self, race_id: str, horse_id: str, 
-                                runner_id: int, result: Dict) -> Dict:
-        """Compute target variables from race result"""
+                                runner_id: int, result: Dict, 
+                                distance_f: Optional[float] = None) -> Dict:
+        """
+        Compute target variables from race result
+        
+        Args:
+            race_id: Race identifier
+            horse_id: Horse identifier
+            runner_id: Runner identifier
+            result: Race result dictionary
+            distance_f: Race distance in furlongs (optional, for speed calculation)
+            
+        Returns:
+            Dictionary with target variables including:
+                - position, won, placed, top_5 (existing)
+                - btn: Beaten lengths (for Model 2)
+                - time_seconds: Parsed finish time (for Model 3 & 4)
+                - speed: Speed in f/s (for Model 3 & 4)
+                - speed_deficit: Will be computed per-race later (for Model 4)
+        """
         if not result:
             return None
         
         position = result.get('position_int')
         if position is None or position >= 900:  # DNF
             return None
+        
+        # Parse time string to seconds
+        time_str = result.get('time')
+        time_seconds = self._parse_time_to_seconds(time_str)
+        
+        # Calculate speed (furlongs per second)
+        speed = None
+        if distance_f and time_seconds:
+            speed = self._calculate_speed(distance_f, time_seconds)
+        
+        # BTN (beaten lengths) - for regression model
+        btn = self._to_float(result.get('ovr_btn'))
         
         return {
             'race_id': race_id,
@@ -1248,97 +1436,293 @@ class FeatureEngineer:
             'won': 1 if position == 1 else 0,
             'placed': 1 if position <= 3 else 0,
             'top_5': 1 if position <= 5 else 0,
-            'beaten_lengths': self._to_float(result.get('ovr_btn')),
-            'finishing_time': result.get('time'),
-            'prize_money': self._parse_prize(result.get('prize'))
+            'beaten_lengths': btn,  # Keep for compatibility
+            'finishing_time': time_str,  # Keep original string
+            'prize_money': self._parse_prize(result.get('prize')),
+            # NEW targets for regression models:
+            'btn': btn,  # Model 2 target
+            'time_seconds': time_seconds,  # For Model 3 & 4
+            'speed': speed,  # Model 3 target (absolute speed)
+            'speed_deficit': None  # Model 4 target (computed per-race after collecting all speeds)
         }
     
     def save_features(self, features: Dict):
-        """Save features to ml_features table - Note: New columns need to be added to table first"""
+        """Save features to ml_features table (110 features, no odds)"""
         cursor = self.conn.cursor()
         
-        # Try to insert with new columns, fall back to old schema if needed
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO ml_features (
-                    race_id, runner_id, horse_id,
-                    horse_age, horse_career_runs, horse_career_wins,
-                    horse_win_rate, horse_place_rate, horse_avg_position,
-                    horse_course_wins, horse_distance_win_rate, horse_going_win_rate,
-                    horse_days_since_last, horse_form_last_5_avg, horse_form_improving,
-                    horse_consistency, horse_best_rating,
-                    horse_best_tsr, horse_avg_tsr_last_5, speed_improving, typical_running_style,
-                    trainer_win_rate_14d, trainer_win_rate_90d, trainer_strike_rate,
-                    trainer_course_win_rate, trainer_distance_win_rate, trainer_roi,
-                    trainer_form_with_horse, trainer_rating,
-                    jockey_win_rate_14d, jockey_win_rate_90d, jockey_strike_rate,
-                    jockey_course_win_rate, jockey_distance_win_rate, jockey_roi, jockey_rating,
-                    combo_win_rate, combo_strike_rate, combo_runs,
-                    field_size, race_class, race_class_encoded, distance_f, going_encoded,
-                    surface_encoded, prize_money,
-                    runner_number, draw, weight_lbs, ofr, rpr, ts, headgear_encoded,
-                    rating_vs_avg, weight_vs_avg, age_vs_avg, weight_lbs_rank, age_rank,
-                    field_best_rpr, field_worst_rpr, field_avg_rpr, horse_rpr_rank,
-                    horse_rpr_vs_best, horse_rpr_vs_worst, field_rpr_spread, top_3_rpr_avg,
-                    horse_in_top_quartile, tsr_vs_field_avg, pace_pressure_likely,
-                    course_distance_draw_bias, draw_position_normalized, low_draw_advantage, high_draw_advantage,
-                    odds_rank, opening_odds, final_odds, odds_movement, market_rank,
-                    sire_distance_win_rate, sire_surface_win_rate, dam_produce_win_rate,
-                    odds_implied_prob, odds_is_favorite, odds_favorite_rank, odds_decimal,
-                    odds_bookmaker_count, odds_spread, odds_market_stability,
-                    horse_sex_encoded, horse_is_filly_mare, horse_is_gelding,
-                    trainer_14d_runs, trainer_14d_wins, trainer_14d_win_pct, trainer_is_hot
+                    race_id,
+                    runner_id,
+                    horse_id,
+                    horse_age,
+                    horse_career_runs,
+                    horse_career_wins,
+                    horse_win_rate,
+                    horse_place_rate,
+                    horse_avg_position,
+                    horse_course_wins,
+                    horse_distance_win_rate,
+                    horse_going_win_rate,
+                    horse_days_since_last,
+                    horse_form_last_5_avg,
+                    horse_form_improving,
+                    horse_consistency,
+                    horse_best_rating,
+                    horse_best_tsr,
+                    horse_avg_tsr_last_5,
+                    speed_improving,
+                    typical_running_style,
+                    trainer_win_rate_14d,
+                    trainer_win_rate_90d,
+                    trainer_strike_rate,
+                    trainer_course_win_rate,
+                    trainer_distance_win_rate,
+                    trainer_roi,
+                    trainer_form_with_horse,
+                    trainer_rating,
+                    jockey_win_rate_14d,
+                    jockey_win_rate_90d,
+                    jockey_strike_rate,
+                    jockey_course_win_rate,
+                    jockey_distance_win_rate,
+                    jockey_roi,
+                    jockey_rating,
+                    combo_win_rate,
+                    combo_strike_rate,
+                    combo_runs,
+                    field_size,
+                    race_class,
+                    race_class_encoded,
+                    distance_f,
+                    going_encoded,
+                    surface_encoded,
+                    prize_money,
+                    runner_number,
+                    draw,
+                    weight_lbs,
+                    ofr,
+                    rpr,
+                    ts,
+                    headgear_encoded,
+                    rating_vs_avg,
+                    weight_vs_avg,
+                    age_vs_avg,
+                    weight_lbs_rank,
+                    age_rank,
+                    field_best_rpr,
+                    field_worst_rpr,
+                    field_avg_rpr,
+                    horse_rpr_rank,
+                    horse_rpr_vs_best,
+                    horse_rpr_vs_worst,
+                    field_rpr_spread,
+                    top_3_rpr_avg,
+                    horse_in_top_quartile,
+                    tsr_vs_field_avg,
+                    pace_pressure_likely,
+                    course_distance_draw_bias,
+                    draw_position_normalized,
+                    low_draw_advantage,
+                    high_draw_advantage,
+                    sire_distance_win_rate,
+                    sire_surface_win_rate,
+                    dam_produce_win_rate,
+                    horse_sex_encoded,
+                    horse_is_filly_mare,
+                    horse_is_gelding,
+                    trainer_14d_runs,
+                    trainer_14d_wins,
+                    trainer_14d_win_pct,
+                    trainer_is_hot,
+                    horse_avg_speed_furlongs_per_sec,
+                    horse_best_speed_career,
+                    horse_speed_last_3_avg,
+                    horse_speed_improving_new,
+                    horse_speed_vs_track_record,
+                    horse_speed_consistency,
+                    horse_avg_btn_last_5,
+                    horse_median_btn_last_5,
+                    horse_btn_improving,
+                    horse_pct_within_3_lengths,
+                    horse_btn_vs_field_avg,
+                    horse_btn_vs_winner_percentile,
+                    horse_best_btn_career,
+                    horse_btn_consistency,
+                    horse_avg_ovr_btn_last_5,
+                    horse_ovr_btn_improving,
+                    horse_ovr_btn_vs_field,
+                    horse_pct_top_half_finishes,
+                    field_quality_rating,
+                    race_competitiveness,
+                    horse_beaten_by_quality,
+                    horse_soft_going_speed_ratio,
+                    horse_weather_performance,
+                    rail_position_advantage,
+                    going_change_adaptation,
+                    horse_weight_adjusted_rating,
+                    horse_weight_performance_trend,
+                    market_position_tier,
+                    class_last_3_avg,
+                    class_change,
+                    dropping_in_class,
+                    rising_in_class,
+                    course_runs,
+                    course_wins,
+                    course_win_rate,
+                    course_place_rate,
+                    course_specialist,
+                    best_distance_f,
+                    distance_from_optimal,
+                    runs_at_distance,
+                    win_rate_at_distance,
+                    trainer_wins_last_14d,
+                    trainer_runs_last_14d,
+                    trainer_win_rate_recent,
+                    trainer_is_hot
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, (
-                features['race_id'], features['runner_id'], features['horse_id'],
-                features['horse_age'], features['horse_career_runs'], features['horse_career_wins'],
-                features['horse_win_rate'], features['horse_place_rate'], features['horse_avg_position'],
-                features['horse_course_wins'], features['horse_distance_win_rate'], features['horse_going_win_rate'],
-                features['horse_days_since_last'], features['horse_form_last_5_avg'], features['horse_form_improving'],
-                features['horse_consistency'], features['horse_best_rating'],
-                features.get('horse_best_tsr'), features.get('horse_avg_tsr_last_5'), 
-                features.get('speed_improving', 0), features.get('typical_running_style', 3),
-                features['trainer_win_rate_14d'], features['trainer_win_rate_90d'], features['trainer_strike_rate'],
-                features['trainer_course_win_rate'], features['trainer_distance_win_rate'], features['trainer_roi'],
-                None, features.get('trainer_rating', 0),  # trainer_form_with_horse not implemented
-                features['jockey_win_rate_14d'], features['jockey_win_rate_90d'], features['jockey_strike_rate'],
-                features['jockey_course_win_rate'], None, features['jockey_roi'], features.get('jockey_rating', 0),
-                features['combo_win_rate'], features['combo_strike_rate'], features['combo_runs'],
-                features['field_size'], features['race_class'], features['race_class_encoded'], 
-                features['distance_f'], features['going_encoded'], features['surface_encoded'], features['prize_money'],
-                features['runner_number'], features['draw'], features['weight_lbs'], 
-                features['ofr'], features['rpr'], features['ts'], features['headgear_encoded'],
-                features['rating_vs_avg'], features['weight_vs_avg'], features['age_vs_avg'],
-                features.get('weight_lbs_rank'), features.get('age_rank'),
-                features.get('field_best_rpr'), features.get('field_worst_rpr'), features.get('field_avg_rpr'),
-                features.get('horse_rpr_rank'), features.get('horse_rpr_vs_best'), features.get('horse_rpr_vs_worst'),
-                features.get('field_rpr_spread'), features.get('top_3_rpr_avg'),                 features.get('horse_in_top_quartile', 0),
-                features.get('tsr_vs_field_avg'), features.get('pace_pressure_likely', 0),
-                features.get('course_distance_draw_bias'), features.get('draw_position_normalized'),
-                features.get('low_draw_advantage', 0), features.get('high_draw_advantage', 0),
-                features['odds_rank'], features['opening_odds'], features['final_odds'], 
-                features['odds_movement'], features['market_rank'],
-                features['sire_distance_win_rate'], features['sire_surface_win_rate'], features['dam_produce_win_rate'],
-                features.get('odds_implied_prob'), features.get('odds_is_favorite', 0), 
-                features.get('odds_favorite_rank', 99), features.get('odds_decimal'),
-                features.get('odds_bookmaker_count', 0), features.get('odds_spread'), 
-                features.get('odds_market_stability'),
-                features.get('horse_sex_encoded', 0), features.get('horse_is_filly_mare', 0), 
-                features.get('horse_is_gelding', 0),
-                features.get('trainer_14d_runs', 0), features.get('trainer_14d_wins', 0), 
-                features.get('trainer_14d_win_pct', 0.0), features.get('trainer_is_hot', 0)
+                features['race_id'],
+                features['runner_id'],
+                features['horse_id'],
+                features.get('horse_age'),
+                features.get('horse_career_runs'),
+                features.get('horse_career_wins'),
+                features.get('horse_win_rate'),
+                features.get('horse_place_rate'),
+                features.get('horse_avg_position'),
+                features.get('horse_course_wins'),
+                features.get('horse_distance_win_rate'),
+                features.get('horse_going_win_rate'),
+                features.get('horse_days_since_last'),
+                features.get('horse_form_last_5_avg'),
+                features.get('horse_form_improving'),
+                features.get('horse_consistency'),
+                features.get('horse_best_rating'),
+                features.get('horse_best_tsr'),
+                features.get('horse_avg_tsr_last_5'),
+                features.get('speed_improving'),
+                features.get('typical_running_style'),
+                features.get('trainer_win_rate_14d'),
+                features.get('trainer_win_rate_90d'),
+                features.get('trainer_strike_rate'),
+                features.get('trainer_course_win_rate'),
+                features.get('trainer_distance_win_rate'),
+                features.get('trainer_roi'),
+                features.get('trainer_form_with_horse'),
+                features.get('trainer_rating'),
+                features.get('jockey_win_rate_14d'),
+                features.get('jockey_win_rate_90d'),
+                features.get('jockey_strike_rate'),
+                features.get('jockey_course_win_rate'),
+                features.get('jockey_distance_win_rate'),
+                features.get('jockey_roi'),
+                features.get('jockey_rating'),
+                features.get('combo_win_rate'),
+                features.get('combo_strike_rate'),
+                features.get('combo_runs'),
+                features.get('field_size'),
+                features.get('race_class'),
+                features.get('race_class_encoded'),
+                features.get('distance_f'),
+                features.get('going_encoded'),
+                features.get('surface_encoded'),
+                features.get('prize_money'),
+                features.get('runner_number'),
+                features.get('draw'),
+                features.get('weight_lbs'),
+                features.get('ofr'),
+                features.get('rpr'),
+                features.get('ts'),
+                features.get('headgear_encoded'),
+                features.get('rating_vs_avg'),
+                features.get('weight_vs_avg'),
+                features.get('age_vs_avg'),
+                features.get('weight_lbs_rank'),
+                features.get('age_rank'),
+                features.get('field_best_rpr'),
+                features.get('field_worst_rpr'),
+                features.get('field_avg_rpr'),
+                features.get('horse_rpr_rank'),
+                features.get('horse_rpr_vs_best'),
+                features.get('horse_rpr_vs_worst'),
+                features.get('field_rpr_spread'),
+                features.get('top_3_rpr_avg'),
+                features.get('horse_in_top_quartile'),
+                features.get('tsr_vs_field_avg'),
+                features.get('pace_pressure_likely'),
+                features.get('course_distance_draw_bias'),
+                features.get('draw_position_normalized'),
+                features.get('low_draw_advantage'),
+                features.get('high_draw_advantage'),
+                features.get('sire_distance_win_rate'),
+                features.get('sire_surface_win_rate'),
+                features.get('dam_produce_win_rate'),
+                features.get('horse_sex_encoded'),
+                features.get('horse_is_filly_mare'),
+                features.get('horse_is_gelding'),
+                features.get('trainer_14d_runs'),
+                features.get('trainer_14d_wins'),
+                features.get('trainer_14d_win_pct'),
+                features.get('trainer_is_hot'),
+                features.get('horse_avg_speed_furlongs_per_sec'),
+                features.get('horse_best_speed_career'),
+                features.get('horse_speed_last_3_avg'),
+                features.get('horse_speed_improving_new'),
+                features.get('horse_speed_vs_track_record'),
+                features.get('horse_speed_consistency'),
+                features.get('horse_avg_btn_last_5'),
+                features.get('horse_median_btn_last_5'),
+                features.get('horse_btn_improving'),
+                features.get('horse_pct_within_3_lengths'),
+                features.get('horse_btn_vs_field_avg'),
+                features.get('horse_btn_vs_winner_percentile'),
+                features.get('horse_best_btn_career'),
+                features.get('horse_btn_consistency'),
+                features.get('horse_avg_ovr_btn_last_5'),
+                features.get('horse_ovr_btn_improving'),
+                features.get('horse_ovr_btn_vs_field'),
+                features.get('horse_pct_top_half_finishes'),
+                features.get('field_quality_rating'),
+                features.get('race_competitiveness'),
+                features.get('horse_beaten_by_quality'),
+                features.get('horse_soft_going_speed_ratio'),
+                features.get('horse_weather_performance'),
+                features.get('rail_position_advantage'),
+                features.get('going_change_adaptation'),
+                features.get('horse_weight_adjusted_rating'),
+                features.get('horse_weight_performance_trend'),
+                features.get('market_position_tier'),
+                features.get('class_last_3_avg'),
+                features.get('class_change'),
+                features.get('dropping_in_class'),
+                features.get('rising_in_class'),
+                features.get('course_runs'),
+                features.get('course_wins'),
+                features.get('course_win_rate'),
+                features.get('course_place_rate'),
+                features.get('course_specialist'),
+                features.get('best_distance_f'),
+                features.get('distance_from_optimal'),
+                features.get('runs_at_distance'),
+                features.get('win_rate_at_distance'),
+                features.get('trainer_wins_last_14d'),
+                features.get('trainer_runs_last_14d'),
+                features.get('trainer_win_rate_recent'),
+                features.get('trainer_is_hot')
             ))
         except sqlite3.OperationalError as e:
-            # If columns don't exist, log warning and skip (schema needs update)
             logger.warning(f"Error saving features (schema may need update): {e}")
-            # Could fall back to old schema here if needed
-    
+
     def save_targets(self, targets: Dict):
         """Save target variables to ml_targets table"""
         if not targets:
@@ -1387,12 +1771,31 @@ class FeatureEngineer:
                 features = self.compute_runner_features(runner, race_context, result)
                 all_features.append(features)
                 
-                # Compute targets
+                # Compute targets (with distance for speed calculation)
+                distance_f = race_context.get('distance_f') if race_context else None
                 targets = self.compute_target_variables(
-                    race_id, runner['horse_id'], runner['runner_id'], result
+                    race_id, runner['horse_id'], runner['runner_id'], result, distance_f
                 )
                 if targets:
                     all_targets.append(targets)
+            
+            # Post-process: Compute speed_deficit (Model 4 target)
+            # Speed deficit = horse_speed - winner_speed (0 for winner, negative for others)
+            if all_targets:
+                # Find winner's speed (position 1)
+                winner_speed = None
+                for target in all_targets:
+                    if target.get('position') == 1 and target.get('speed') is not None:
+                        winner_speed = target['speed']
+                        break
+                
+                # Calculate deficit for each horse
+                if winner_speed is not None:
+                    for target in all_targets:
+                        if target.get('speed') is not None:
+                            target['speed_deficit'] = target['speed'] - winner_speed
+                        else:
+                            target['speed_deficit'] = None
             
             # Compute relative features (modifies in place)
             all_features = self.compute_relative_features(all_features)

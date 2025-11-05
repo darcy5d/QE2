@@ -199,7 +199,7 @@ def extend_schema(conn):
             runner_id INTEGER NOT NULL,
             horse_id TEXT NOT NULL,
             
-            -- Horse features
+            -- Horse features (basic)
             horse_age INTEGER,
             horse_career_runs INTEGER,
             horse_career_wins INTEGER,
@@ -214,6 +214,10 @@ def extend_schema(conn):
             horse_form_improving INTEGER,
             horse_consistency REAL,
             horse_best_rating INTEGER,
+            horse_best_tsr INTEGER,
+            horse_avg_tsr_last_5 REAL,
+            speed_improving INTEGER,
+            typical_running_style INTEGER,
             
             -- Trainer features
             trainer_win_rate_14d REAL,
@@ -223,6 +227,7 @@ def extend_schema(conn):
             trainer_distance_win_rate REAL,
             trainer_roi REAL,
             trainer_form_with_horse REAL,
+            trainer_rating INTEGER,
             
             -- Jockey features
             jockey_win_rate_14d REAL,
@@ -231,6 +236,7 @@ def extend_schema(conn):
             jockey_course_win_rate REAL,
             jockey_distance_win_rate REAL,
             jockey_roi REAL,
+            jockey_rating INTEGER,
             
             -- Trainer-Jockey combo
             combo_win_rate REAL,
@@ -259,18 +265,105 @@ def extend_schema(conn):
             rating_vs_avg REAL,
             weight_vs_avg REAL,
             age_vs_avg REAL,
-            odds_rank INTEGER,
+            weight_lbs_rank INTEGER,
+            age_rank INTEGER,
+            field_best_rpr INTEGER,
+            field_worst_rpr INTEGER,
+            field_avg_rpr REAL,
+            horse_rpr_rank INTEGER,
+            horse_rpr_vs_best REAL,
+            horse_rpr_vs_worst REAL,
+            field_rpr_spread REAL,
+            top_3_rpr_avg REAL,
+            horse_in_top_quartile INTEGER,
+            tsr_vs_field_avg REAL,
+            pace_pressure_likely INTEGER,
             
-            -- Market features
-            opening_odds REAL,
-            final_odds REAL,
-            odds_movement REAL,
-            market_rank INTEGER,
+            -- Draw features
+            course_distance_draw_bias REAL,
+            draw_position_normalized REAL,
+            low_draw_advantage INTEGER,
+            high_draw_advantage INTEGER,
             
-            -- Pedigree features
+            -- Pedigree features (sire/dam)
             sire_distance_win_rate REAL,
             sire_surface_win_rate REAL,
             dam_produce_win_rate REAL,
+            
+            -- Horse sex features
+            horse_sex_encoded INTEGER,
+            horse_is_filly_mare INTEGER,
+            horse_is_gelding INTEGER,
+            
+            -- Trainer hot streak
+            trainer_14d_runs INTEGER,
+            trainer_14d_wins INTEGER,
+            trainer_14d_win_pct REAL,
+            trainer_is_hot INTEGER,
+            
+            -- Speed features
+            horse_avg_speed_furlongs_per_sec REAL,
+            horse_best_speed_career REAL,
+            horse_speed_last_3_avg REAL,
+            horse_speed_improving_new INTEGER,
+            horse_speed_vs_track_record REAL,
+            horse_speed_consistency REAL,
+            
+            -- BTN features
+            horse_avg_btn_last_5 REAL,
+            horse_median_btn_last_5 REAL,
+            horse_btn_improving INTEGER,
+            horse_pct_within_3_lengths REAL,
+            horse_btn_vs_field_avg REAL,
+            horse_btn_vs_winner_percentile REAL,
+            horse_best_btn_career REAL,
+            horse_btn_consistency REAL,
+            horse_avg_ovr_btn_last_5 REAL,
+            horse_ovr_btn_improving INTEGER,
+            horse_ovr_btn_vs_field REAL,
+            horse_pct_top_half_finishes REAL,
+            
+            -- Quality features (unimplemented but in INSERT)
+            field_quality_rating REAL,
+            race_competitiveness REAL,
+            horse_beaten_by_quality REAL,
+            
+            -- Weather/Going features
+            horse_soft_going_speed_ratio REAL,
+            horse_weather_performance REAL,
+            rail_position_advantage REAL,
+            going_change_adaptation REAL,
+            
+            -- Weight features
+            horse_weight_adjusted_rating REAL,
+            horse_weight_performance_trend REAL,
+            
+            -- Market features
+            market_position_tier INTEGER,
+            
+            -- Class features
+            class_last_3_avg REAL,
+            class_change REAL,
+            dropping_in_class INTEGER,
+            rising_in_class INTEGER,
+            
+            -- Course specialist features
+            course_runs INTEGER,
+            course_wins INTEGER,
+            course_win_rate REAL,
+            course_place_rate REAL,
+            course_specialist INTEGER,
+            
+            -- Distance features
+            best_distance_f REAL,
+            distance_from_optimal REAL,
+            runs_at_distance INTEGER,
+            win_rate_at_distance REAL,
+            
+            -- Trainer recent form
+            trainer_wins_last_14d INTEGER,
+            trainer_runs_last_14d INTEGER,
+            trainer_win_rate_recent REAL,
             
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (race_id) REFERENCES races(race_id) ON DELETE CASCADE,

@@ -9,8 +9,7 @@ import math
 class BettingCalculator:
     """Calculate bet recommendations using Kelly Criterion and Expected Value"""
     
-    def __init__(self, bankroll: float = 1000.0, kelly_fraction: float = 0.5, min_edge: float = 0.05,
-                 market_confidence: float = 0.0):
+    def __init__(self, bankroll: float = 1000.0, kelly_fraction: float = 0.5, min_edge: float = 0.05):
         """
         Initialize betting calculator
         
@@ -18,12 +17,10 @@ class BettingCalculator:
             bankroll: Total betting bankroll (default $1000)
             kelly_fraction: Fraction of Kelly to use (0.125 to 1.0, default 0.5 = half Kelly)
             min_edge: Minimum edge required to recommend bet (default 0.05 = 5%)
-            market_confidence: How much to blend market probability (0.0 = pure model, 0.5 = 50/50 blend, default 0.0)
         """
         self.bankroll = bankroll
         self.kelly_fraction = kelly_fraction
         self.min_edge = min_edge
-        self.market_confidence = market_confidence
         
         # Safety cap: never stake more than this % of bankroll on single bet
         self.max_stake_cap = 0.05  # 5% max per individual bet (safety cap)
@@ -58,37 +55,19 @@ class BettingCalculator:
     
     def blend_probability(self, our_prob: float, market_odds: float) -> float:
         """
-        Blend our model's probability with market probability
+        Use pure model probability (traditional Kelly Criterion approach)
         
-        This is a conservative risk management approach that acknowledges
-        "wisdom of the crowds" - the market might know things we don't.
-        
-        market_confidence = 0.0: Pure model (traditional Kelly)
-        market_confidence = 0.3: 70% model, 30% market  
-        market_confidence = 0.5: 50/50 blend
-        market_confidence = 0.65: 35% model, 65% market (CONSERVATIVE)
+        Kelly Criterion assumes you have superior information vs the market.
+        We trust our BTN model's superior discrimination (CV 1.60 vs market baseline 0.40).
         
         Args:
             our_prob: Our model's probability estimate
-            market_odds: Market decimal odds
+            market_odds: Market decimal odds (not used, kept for compatibility)
             
         Returns:
-            Blended probability for Kelly calculation
+            Pure model probability
         """
-        if self.market_confidence == 0.0:
-            # Pure model approach (traditional Kelly)
-            return our_prob
-        
-        # Calculate market implied probability
-        market_prob = self.odds_to_probability(market_odds)
-        if market_prob is None:
-            return our_prob
-        
-        # Blend: higher market_confidence = more conservative (closer to market)
-        # Example: market_confidence=0.65 means 65% market + 35% model
-        blended = (1.0 - self.market_confidence) * our_prob + self.market_confidence * market_prob
-        
-        return blended
+        return our_prob
     
     def calculate_expected_value(self, our_prob: float, market_odds: float) -> float:
         """

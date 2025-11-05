@@ -26,11 +26,13 @@ class InTheMoneyView(QWidget):
         self.db = db_helper
         self.upcoming_db_path = Path(__file__).parent.parent / "upcoming_races.db"
         
+        # Model type for predictions (default to BTN)
+        self.model_type = 'btn'
+        
         # Default settings
         self.bankroll = 1000.0
         self.kelly_fraction = 0.5
         self.min_edge = 0.05
-        self.market_confidence = 0.65  # Default to 65% market blend (conservative)
         self.selected_dates = []  # Empty list = All Dates
         
         # Bet type filters
@@ -44,8 +46,7 @@ class InTheMoneyView(QWidget):
         self.calculator = BettingCalculator(
             self.bankroll, 
             self.kelly_fraction, 
-            self.min_edge,
-            self.market_confidence
+            self.min_edge
         )
         
         # Store current recommendations
@@ -102,6 +103,29 @@ class InTheMoneyView(QWidget):
         self.export_btn.clicked.connect(self.export_recommendations)
         self.export_btn.setEnabled(False)
         header_layout.addWidget(self.export_btn)
+        
+        # Refresh Runners button
+        self.refresh_runners_btn = QPushButton("🔄 Refresh Runners")
+        self.refresh_runners_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['accent_blue']};
+                color: white;
+                font-size: 12px;
+                font-weight: normal;
+                border: none;
+                border-radius: 4px;
+                padding: 10px 20px;
+            }}
+            QPushButton:hover {{
+                background-color: #3D8AC7;
+            }}
+            QPushButton:pressed {{
+                background-color: #2E6FA1;
+            }}
+        """)
+        self.refresh_runners_btn.clicked.connect(self.refresh_runners)
+        self.refresh_runners_btn.setToolTip("Refetch upcoming races to check for scratched horses")
+        header_layout.addWidget(self.refresh_runners_btn)
         
         # Generate button
         self.generate_btn = QPushButton("🚀 Find Value Bets")
@@ -259,29 +283,6 @@ class InTheMoneyView(QWidget):
             }}
         """)
         row2.addWidget(self.edge_combo)
-        
-        row2.addSpacing(20)
-        
-        # Market confidence (blending)
-        conf_label = QLabel("Market Blend:")
-        conf_label.setStyleSheet(f"font-weight: normal; color: {COLORS['text_primary']};")
-        conf_label.setToolTip("How much to blend market probability with our model\n0% = Pure model (traditional Kelly)\n65% = Conservative (65% market + 35% model)")
-        row2.addWidget(conf_label)
-        
-        self.market_confidence_combo = QComboBox()
-        self.market_confidence_combo.addItems(["0% (Pure Model)", "30% (Slight Blend)", "50% (Balanced)", "65% (Conservative)"])
-        self.market_confidence_combo.setCurrentIndex(3)  # Default to 65% (conservative)
-        self.market_confidence_combo.currentIndexChanged.connect(self.on_settings_changed)
-        self.market_confidence_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {COLORS['bg_secondary']};
-                border: 1px solid {COLORS['border_medium']};
-                border-radius: 4px;
-                padding: 5px;
-                color: {COLORS['text_primary']};
-            }}
-        """)
-        row2.addWidget(self.market_confidence_combo)
         
         row2.addStretch()
         layout.addLayout(row2)
@@ -500,17 +501,11 @@ class InTheMoneyView(QWidget):
         edge_text = self.edge_combo.currentText().replace('%', '')
         self.min_edge = float(edge_text) / 100.0
         
-        # Update market confidence
-        conf_index = self.market_confidence_combo.currentIndex()
-        conf_values = [0.0, 0.30, 0.50, 0.65]
-        self.market_confidence = conf_values[conf_index]
-        
         # Update calculator
         self.calculator = BettingCalculator(
             self.bankroll, 
             self.kelly_fraction, 
-            self.min_edge,
-            self.market_confidence
+            self.min_edge
         )
         
         # Update warning
@@ -561,6 +556,85 @@ class InTheMoneyView(QWidget):
         self.selected_dates = []
         if self.all_recommendations:
             self.summary_label.setText("⚠️ Showing all dates - click 'Find Value Bets' to recalculate")
+    
+    @Slot()
+    def refresh_runners(self):
+        """Refresh upcoming races to check for scratched horses"""
+        from PySide6.QtWidgets import QMessageBox
+        
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Refresh Runners",
+            "This will refetch all upcoming races to check for scratched horses.\n\n"
+            "This may take a minute and will update the database.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
+        # Disable button during refresh
+        self.refresh_runners_btn.setEnabled(False)
+        self.refresh_runners_btn.setText("🔄 Refreshing...")
+        self.summary_label.setText("⏳ Refetching upcoming races...")
+        
+        # Import and start the upcoming fetcher thread
+        from gui.upcoming_fetcher import UpcomingRacesFetcher
+        
+        self.upcoming_fetcher = UpcomingRacesFetcher(str(self.upcoming_db_path))
+        self.upcoming_fetcher.finished.connect(self.on_refresh_finished)
+        self.upcoming_fetcher.error.connect(self.on_refresh_error)
+        self.upcoming_fetcher.start()
+    
+    def set_model_type(self, model_type: str):
+        """Update the model type for predictions
+        
+        Args:
+            model_type: 'btn' or 'ranking'
+        """
+        self.model_type = model_type
+        print(f"InTheMoneyView: Model type set to {model_type}")
+    
+    @Slot(int)
+    def on_refresh_finished(self, total_races: int):
+        """Handle successful refresh completion"""
+        from PySide6.QtWidgets import QMessageBox
+        
+        # Reload dates
+        self.load_available_dates()
+        
+        # Re-enable button
+        self.refresh_runners_btn.setEnabled(True)
+        self.refresh_runners_btn.setText("🔄 Refresh Runners")
+        
+        QMessageBox.information(
+            self,
+            "Refresh Complete",
+            f"Successfully fetched {total_races} upcoming races!\n\n"
+            "Click 'Find Value Bets' to regenerate recommendations with updated runner data."
+        )
+        
+        self.summary_label.setText("✅ Runners refreshed - click 'Find Value Bets' to regenerate with updated data")
+    
+    @Slot(str)
+    def on_refresh_error(self, error_msg: str):
+        """Handle refresh error"""
+        from PySide6.QtWidgets import QMessageBox
+        
+        # Re-enable button
+        self.refresh_runners_btn.setEnabled(True)
+        self.refresh_runners_btn.setText("🔄 Refresh Runners")
+        
+        QMessageBox.warning(
+            self,
+            "Refresh Failed",
+            f"Failed to refresh upcoming races:\n\n{error_msg}"
+        )
+        
+        self.summary_label.setText("❌ Refresh failed - see error message")
     
     def update_kelly_warning(self):
         """Update Kelly fraction warning message"""
@@ -666,6 +740,17 @@ class InTheMoneyView(QWidget):
             
             # Generate recommendations
             self.all_recommendations = self.analyze_predictions(all_race_predictions)
+            
+            # DEBUG: Check what we have
+            print(f"\n{'='*80}")
+            print(f"🔍 DEBUG: Generated {len(self.all_recommendations)} total recommendations")
+            if self.all_recommendations:
+                bet_types = {}
+                for rec in self.all_recommendations:
+                    bt = rec['bet_type']
+                    bet_types[bt] = bet_types.get(bt, 0) + 1
+                print(f"   Breakdown: {bet_types}")
+            print(f"{'='*80}\n")
             
             # Display recommendations
             self.display_filtered_recommendations()
@@ -779,7 +864,8 @@ class InTheMoneyView(QWidget):
             racing_db_path = Path(__file__).parent.parent / "racing_pro.db"
             predictor = ModelPredictor(
                 racing_db_path=str(racing_db_path),
-                race_type=race_type or 'Flat'
+                race_type=race_type or 'Flat',
+                model_type=self.model_type
             )
             
             # Generate predictions for each race
@@ -919,6 +1005,13 @@ class InTheMoneyView(QWidget):
         """Display recommendations filtered by bet type"""
         self.recommendations_tree.clear()
         
+        # DEBUG
+        print(f"\n{'='*80}")
+        print(f"🖼️  DISPLAY: Starting display with {len(self.all_recommendations)} recommendations")
+        print(f"   Filter states: WIN={self.show_win}, PLACE={self.show_place}, EXACTA={self.show_exacta}")
+        print(f"                  TRIFECTA={self.show_trifecta}, FIRST_FOUR={self.show_first_four}")
+        print(f"{'='*80}\n")
+        
         # Filter recommendations
         filtered = []
         for rec in self.all_recommendations:
@@ -934,7 +1027,10 @@ class InTheMoneyView(QWidget):
             elif bet_type == 'FIRST FOUR' and self.show_first_four:
                 filtered.append(rec)
         
+        print(f"🖼️  DISPLAY: After filtering -> {len(filtered)} recommendations will be shown")
+        
         if not filtered:
+            print(f"⚠️  DISPLAY: No recommendations after filtering - showing empty state")
             self.show_empty_state()
             return
         
@@ -987,8 +1083,25 @@ class InTheMoneyView(QWidget):
                 course_item.setExpanded(True)
                 
                 for race in sorted(organized[date][course].keys()):
-                    race_item = QTreeWidgetItem([f"   {race}", "", "", "", ""])
-                    race_item.setForeground(0, QColor(COLORS['text_secondary']))
+                    # Check if this race has scratched horses
+                    first_rec = organized[date][course][race][0]
+                    race_info = first_rec['race_info']
+                    scratched_count = race_info.get('scratched_count', 0)
+                    
+                    # Add warning emoji if horses scratched
+                    race_text = f"   {race}"
+                    if scratched_count > 0:
+                        scratched_names = race_info.get('scratched_horses', [])
+                        race_text = f"   ⚠️ {race} - {scratched_count} scratched: {', '.join(scratched_names)}"
+                    
+                    race_item = QTreeWidgetItem([race_text, "", "", "", ""])
+                    
+                    # Use warning color if horses scratched
+                    if scratched_count > 0:
+                        race_item.setForeground(0, QColor('#FFA500'))  # Orange warning
+                    else:
+                        race_item.setForeground(0, QColor(COLORS['text_secondary']))
+                    
                     course_item.addChild(race_item)
                     race_item.setExpanded(True)
                     

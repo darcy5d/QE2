@@ -108,6 +108,9 @@ class PredictionsView(QWidget):
         self.prediction_worker = None
         self.current_predictions = []
         
+        # Model type for predictions (default to BTN)
+        self.model_type = 'btn'
+        
         # State management for hierarchical navigation
         self.organized_predictions = {}  # {date_str: {course: [races]}}
         self.date_objects = {}  # {date_str: date_obj} for proper sorting
@@ -460,6 +463,15 @@ class PredictionsView(QWidget):
         widget.setLayout(layout)
         return widget
     
+    def set_model_type(self, model_type: str):
+        """Update the model type for predictions
+        
+        Args:
+            model_type: 'btn' or 'ranking'
+        """
+        self.model_type = model_type
+        print(f"PredictionsView: Model type set to {model_type}")
+    
     def show_empty_state(self):
         """Show message when no predictions have been generated"""
         self.clear_hierarchy()
@@ -534,7 +546,8 @@ class PredictionsView(QWidget):
         self.prediction_worker = PredictionWorker(
             race_ids,
             str(self.upcoming_db_path),
-            str(self.racing_db_path)
+            str(self.racing_db_path),
+            model_type=self.model_type
         )
         self.prediction_worker.progress.connect(self.on_progress)
         self.prediction_worker.predictions_ready.connect(self.on_predictions_ready)

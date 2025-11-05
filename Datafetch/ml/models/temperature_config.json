@@ -1,0 +1,103 @@
+{
+  "temperature": 1.0,
+  "validation_results": [
+    {
+      "temperature": 0.2,
+      "nll": 0.3456808959814874,
+      "brier": 0.09376109978104599,
+      "calibration_error": 0.04429549524692044,
+      "prob_min": 0.002759682247415185,
+      "prob_max": 1.0,
+      "prob_std": 0.06327024847269058
+    },
+    {
+      "temperature": 0.3,
+      "nll": 0.33716371806287954,
+      "brier": 0.0922308038717961,
+      "calibration_error": 0.03441733790785671,
+      "prob_min": 0.008466383442282677,
+      "prob_max": 1.0,
+      "prob_std": 0.0493004210293293
+    },
+    {
+      "temperature": 0.4,
+      "nll": 0.33413153913292576,
+      "brier": 0.09168767396788319,
+      "calibration_error": 0.03090802031889936,
+      "prob_min": 0.01376701146364212,
+      "prob_max": 1.0,
+      "prob_std": 0.04321422800421715
+    },
+    {
+      "temperature": 0.5,
+      "nll": 0.33271806332093334,
+      "brier": 0.09143460918274707,
+      "calibration_error": 0.028471164586916654,
+      "prob_min": 0.016955167055130005,
+      "prob_max": 1.0,
+      "prob_std": 0.04004151001572609
+    },
+    {
+      "temperature": 0.6,
+      "nll": 0.33194796781259994,
+      "brier": 0.09129646943518487,
+      "calibration_error": 0.026570070591599555,
+      "prob_min": 0.019427472725510597,
+      "prob_max": 1.0,
+      "prob_std": 0.038187332451343536
+    },
+    {
+      "temperature": 0.7,
+      "nll": 0.33148329502439,
+      "brier": 0.09121288939991859,
+      "calibration_error": 0.025955865562636776,
+      "prob_min": 0.021381517872214317,
+      "prob_max": 1.0,
+      "prob_std": 0.037013862282037735
+    },
+    {
+      "temperature": 0.8,
+      "nll": 0.3311819099823624,
+      "brier": 0.09115852614005387,
+      "calibration_error": 0.025336411325158507,
+      "prob_min": 0.022957198321819305,
+      "prob_max": 1.0,
+      "prob_std": 0.036226022988557816
+    },
+    {
+      "temperature": 0.9,
+      "nll": 0.3309756160084369,
+      "brier": 0.0911212152168018,
+      "calibration_error": 0.025250918816979107,
+      "prob_min": 0.024251282215118408,
+      "prob_max": 1.0,
+      "prob_std": 0.035672377794981
+    },
+    {
+      "temperature": 1.0,
+      "nll": 0.33082839054465063,
+      "brier": 0.09109452227382528,
+      "calibration_error": 0.025093510476522612,
+      "prob_min": 0.025331351906061172,
+      "prob_max": 1.0,
+      "prob_std": 0.03526891767978668
+    }
+  ],
+  "test_metrics": {
+    "nll": 0.34492645972508157,
+    "brier": 0.09576846424956535,
+    "calibration_error": 0.03120966108897439
+  },
+  "test_spread": {
+    "min": 0.02766508236527443,
+    "max": 1.0,
+    "mean": 0.10477998852729797,
+    "std": 0.04204574227333069,
+    "median": 0.0958455428481102,
+    "q25": 0.07606968656182289,
+    "q75": 0.1245417632162571
+  },
+  "model_path": "Datafetch/ml/models/xgboost_flat.json",
+  "feature_columns_path": "Datafetch/ml/models/feature_columns_flat.json",
+  "race_type": "Flat"
+}
